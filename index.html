@@ -1080,7 +1080,7 @@
 
                         if (altRoute && altRoute.geometry && JSON.stringify(altRoute.geometry) !== JSON.stringify(mainRoute.geometry)) {
                             distKmAlt = parseFloat((altRoute.distance / 1000).toFixed(2));
-                            durMinAlt = calculateRealEstTime(distKmAlt, (altRoute.duration / 60) * 1.15, transportType);
+                            durMinAlt = calculateRealEstTime(altRoute, (altRoute.duration / 60) * 1.15, transportType);
                             geomAlt = altRoute.geometry;
                         } else {
                             distKmAlt = parseFloat((distKmMain * 1.12).toFixed(2));
@@ -1738,7 +1738,7 @@
             const tech = databaseTechnicians.find(t => t.id === techId);
             if (!tech) return;
 
-            // AQUÍ ES DONDE OFICIALMENTE CAMBIA A ASIGNADO
+            // AQUÍ ES DONDE OFICIALMENTE CAMBIA A ASIGNADO Y SE NOTIFICA AL ADMIN
             tech.activeTickets = 1;
             tech.status = "ASIGNADO";
             persistDatabase();
@@ -1774,7 +1774,7 @@
                     totalCost: evaluated.estimatedCost || '1701.75',
                     altDistanceKm: evaluated.altDistanceKm || evaluated.distanceKm || '374.01',
                     altEstimatedTimeMin: evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin || 280,
-                    altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '1701.75',
+                    altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '1950.00',
                     routeGeometryMain: evaluated.routeGeometryMain || null,
                     routeGeometryAlt: evaluated.routeGeometryAlt || null,
                     selectedRoute: activeTechSelectedRoute,
@@ -1789,6 +1789,19 @@
             generateAIRecommendation(null); // Actualiza el panel ADMIN a ASIGNADO en tiempo real
             syncTechDeviceView();
             broadcastRealtime('TECH_ACCEPTED_ROUTE', { techId: tech.id });
+
+            // Mensaje de confirmación por WhatsApp dirigido al Administrador / Centro de Control
+            const adminPhone = "525585601910"; // Teléfono de contacto configurado en la base (Ing. Alfredo Hernández)
+            const confirmMsg = `*CONFIRMACIÓN DE RUTA ACEPATADA - SMARTLOGISTICS*%0A%0A` +
+                `El técnico *${tech.name}* ha aceptado formalmente la ruta:%0A` +
+                `• *Cliente:* ${activeTicketData.clientName}%0A` +
+                `• *Destino:* ${activeTicketData.clientAddress}%0A` +
+                `• *Distancia:* ${activeTicketData.distanceKm} km (~${formatDuration(activeTicketData.estimatedTimeMin)})%0A` +
+                `• *Viático Total:* $${activeTicketData.totalCost} MXN%0A` +
+                `• *Estatus:* ASIGNADO Y EN CAMINO.`;
+
+            const waConfirmUrl = `https://api.whatsapp.com/send/?phone=${adminPhone}&text=${confirmMsg}`;
+            window.open(waConfirmUrl, '_blank');
 
             alert(`¡Ruta aceptada con éxito!\nTu estatus ahora es ASIGNADO y se actualizó en el panel del Administrador.`);
         }
@@ -1916,7 +1929,6 @@
                     badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase";
                 }
             } else if (isProposalPending) {
-                // Propuesta enviada por admin, pendiente de que el técnico presione "Aceptar"
                 if (btnTomar) {
                     btnTomar.classList.remove('hidden');
                     btnTomar.innerHTML = `<i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada`;
@@ -1933,12 +1945,15 @@
                     badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase";
                 }
             } else {
-                if (btnTomar) btnTomar.classList.add('hidden');
+                if (btnTomar) {
+                    btnTomar.classList.remove('hidden');
+                    btnTomar.innerHTML = `<i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada`;
+                }
                 if (btnRuta) btnRuta.classList.add('hidden');
                 if (btnConcluir) btnConcluir.disabled = true;
 
                 if (statusEl) {
-                    statusEl.innerText = "DISPONIBLE (SIN RUTA ASIGNADA)";
+                    statusEl.innerText = "DISPONIBLE (SELECCIONAR RUTA PROPUESTA)";
                     statusEl.className = "text-emerald-400 font-bold";
                 }
                 if (badgeEl) {
@@ -2054,8 +2069,8 @@
             const clientName = document.getElementById('clientName').value || 'Cliente';
             const phoneTarget = formatPhoneNumber(tech.phone);
 
-            const rawTicket = localStorage.getItem('smartlogistics_active_ticket');
-            if (rawTicket) {
+            const rawStored = localStorage.getItem('smartlogistics_active_ticket');
+            if (rawStored) {
                 const ticket = JSON.parse(rawStored);
                 if (ticket.techId === tech.id) {
                     ticket.status = 'CANCELADO';
