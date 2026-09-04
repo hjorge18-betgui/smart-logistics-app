@@ -497,7 +497,7 @@
                     <p class="text-slate-400">Tipo de Fallo: <span id="techIssueType" class="text-white font-medium">Mantenimiento Correctivo PC</span></p>
                     <p class="text-slate-400">Distancia y Tiempo: <span id="techDistanceTime" class="text-white font-medium">-- km / -- min</span></p>
                     <p class="text-slate-400">Viáticos Estimados: <span id="techTotalCost" class="text-emerald-400 font-bold">$0.00 MXN</span></p>
-                    <p class="text-slate-400">Estado de Ruta: <span id="currentTicketStatus" class="text-yellow-400 font-medium">Asignado</span></p>
+                    <p class="text-slate-400">Estado de Ruta: <span id="currentTicketStatus" class="text-yellow-400 font-medium">Disponible</span></p>
                 </div>
 
                 <div class="pt-2 border-t border-slate-800 space-y-2">
@@ -568,7 +568,6 @@
             console.warn("BroadcastChannel no soportado en este entorno, se usará storage event:", e);
         }
 
-        // Respaldo de sincronización mediante Storage Event
         window.addEventListener('storage', function(e) {
             if (e.key === 'smartlogistics_active_ticket' || e.key === 'smartlogistics_techs_db') {
                 loadPersistedDatabase();
@@ -632,7 +631,6 @@
             "Zacatecas": ["Zacatecas", "Fresnillo", "Guadalupe"]
         };
 
-        // BASE DE DATOS DE TÉCNICOS INICIAL
         const initialTechniciansData = [
             { id: "T-101", name: "ISMAEL JACOME CHAGALA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "T A BARBACHANO M 764 L 5 SACXAN Y N BRAVO LAZARO CARDENAS COL. F. CHETUMAL, Q.R", lat: 18.539505, lng: -88.271435, costPerKm: 3.50, kpiEffectiveness: 100.0, rankingRaw: 1.0, activeTickets: 0, status: "DISPONIBLE", lastCancellationReason: "" },
             { id: "T-102", name: "CARLOS AUGUSTO PRADO ARGUELLO", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "MACARENA 13 FRACC LA GIRALDA JALAPA VERACRUZ", lat: 19.508521, lng: -96.867738, costPerKm: 3.50, kpiEffectiveness: 100.0, rankingRaw: 1.0, activeTickets: 0, status: "DISPONIBLE", lastCancellationReason: "" },
@@ -1149,7 +1147,6 @@
             const role = document.getElementById('loginRole').value;
             const user = document.getElementById('loginUser').value;
 
-            // Guardar sesión activa en localStorage
             localStorage.setItem('smartlogistics_session', JSON.stringify({
                 role: role,
                 user: user,
@@ -1521,7 +1518,7 @@
 
                 let actionButtonsHtml = `
                     <button onclick="assignTicket('${tech.id}')" ${isStandby ? 'disabled' : ''} class="px-2.5 py-1 ${isAssigned ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} text-white rounded font-bold text-[10px] flex items-center gap-1">
-                        <i class="fa-brands fa-whatsapp text-green-300"></i> ${isAssigned ? 'Reasignar' : 'Asignar'}
+                        <i class="fa-brands fa-whatsapp text-green-300"></i> ${isAssigned ? 'Reasignar' : 'Asignar Ruta'}
                     </button>
                 `;
 
@@ -1625,7 +1622,6 @@
 
                         let boundsGroup = L.featureGroup([techMarker, clientMarker]);
 
-                        // Ruta A (Azul - Principal)
                         if (top.routeGeometryMain && top.routeGeometryMain.coordinates) {
                             const routeCoordsMain = top.routeGeometryMain.coordinates.map(c => [c[1], c[0]]);
                             const polyMain = L.polyline(routeCoordsMain, { color: '#3b82f6', weight: 5, opacity: 0.9 })
@@ -1634,7 +1630,6 @@
                             boundsGroup.addLayer(polyMain);
                         }
 
-                        // Ruta B (Ámbar punteada - Alterna por tráfico o retrasos)
                         if (top.routeGeometryAlt && top.routeGeometryAlt.coordinates) {
                             const routeCoordsAlt = top.routeGeometryAlt.coordinates.map(c => [c[1], c[0]]);
                             const polyAlt = L.polyline(routeCoordsAlt, { color: '#f59e0b', weight: 4, opacity: 0.85, dashArray: '6, 8' })
@@ -1658,16 +1653,10 @@
             }
         }
 
-        // ASIGNAR TICKET Y SINCRONIZAR
+        // AL HACER CLIC EN "ASIGNAR RUTA" (ADMIN): ENVÍA LA PROPUESTA AL TÉCNICO (NO LO CAMBIA A ASIGNADO TODAVÍA)
         function assignTicket(techId) {
             const tech = databaseTechnicians.find(t => t.id === techId);
             if (!tech) return;
-
-            tech.activeTickets += 1;
-            tech.status = "ASIGNADO";
-            tech.lastCancellationReason = "";
-            persistDatabase();
-            updateTechDropdown();
 
             const clientName = document.getElementById('clientName').value;
             const address = document.getElementById('clientAddress').value;
@@ -1677,6 +1666,7 @@
             const evaluated = lastEvaluatedCandidates.find(c => c.id === techId) || tech;
             const phoneTarget = formatPhoneNumber(tech.phone);
 
+            // Guarda el ticket como PROPUESTA / PENDIENTE DE ACEPTAR EN EL DISPOSITIVO DEL TÉCNICO
             const activeTicketData = {
                 techId: tech.id,
                 techName: tech.name,
@@ -1697,24 +1687,21 @@
                 altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '0.00',
                 routeGeometryMain: evaluated.routeGeometryMain || null,
                 routeGeometryAlt: evaluated.routeGeometryAlt || null,
-                status: 'ASIGNADO',
+                status: 'PROPUESTA_PENDIENTE', // Aún no asignado oficialmente
                 assignedAt: new Date().toISOString()
             };
 
             localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(activeTicketData));
 
-            const message = `*NUEVA ASIGNACIÓN DE SERVICIO - SMARTLOGISTICS*%0A%0A` +
-                `*Hola ${tech.name},* se te ha asignado un nuevo ticket:%0A` +
+            const message = `*PROPUESTA DE NUEVA RUTA - SMARTLOGISTICS*%0A%0A` +
+                `*Hola ${tech.name},* se te ha enviado una propuesta de ruta:%0A` +
                 `• *Cliente:* ${clientName}%0A` +
                 `• *Fallo:* ${issue}%0A` +
                 `• *Urgencia:* ${urgency}%0A` +
                 `• *Dirección:* ${address}%0A` +
                 `• *Distancia:* ${evaluated.distanceKm || '--'} km (%7E${formatDuration(evaluated.estimatedTimeMin)})%0A` +
-                `• *Gasto KM:* $${evaluated.kmCost || '--'} MXN%0A` +
-                `• *Casetas:* $${evaluated.tollsCost || '0.00'} MXN%0A` +
-                `• *Total Viático:* $${evaluated.estimatedCost || '--'} MXN%0A` +
-                `• *Transporte Registrado:* ${tech.transport}%0A%0A` +
-                `Por favor confirma recepción e inicia traslado en la app.`;
+                `• *Total Viático:* $${evaluated.estimatedCost || '--'} MXN%0A%0A` +
+                `Por favor abre tu app y presiona *"Aceptar y Poner como Asignada"* para confirmar.`;
 
             const waUrl = phoneTarget 
                 ? `https://api.whatsapp.com/send/?phone=${phoneTarget}&text=${message}`
@@ -1722,12 +1709,12 @@
 
             window.open(waUrl, '_blank');
 
-            alert(`Servicio asignado a ${tech.name}.\nRuta reflejada en su dispositivo móvil.`);
+            alert(`Propuesta de ruta enviada a ${tech.name} vía WhatsApp.\nEl técnico debe aceptarla en su app para cambiar su estatus a ASIGNADO.`);
             
             document.getElementById('manualTechSelect').value = 'AUTO';
             generateAIRecommendation(null);
             syncTechDeviceView();
-            broadcastRealtime('TICKET_ASSIGNED', { techId: tech.id });
+            broadcastRealtime('TICKET_OFFERED', { techId: tech.id });
         }
 
         function onTechProfileSelected() {
@@ -1739,6 +1726,7 @@
             syncTechDeviceView(false);
         }
 
+        // EL TÉCNICO PRESIONA "ACEPTAR Y PONER COMO ASIGNADA" DESDE SU CELULAR
         function tomarRutaTecnico() {
             const profileSelect = document.getElementById('techProfileSelect');
             const techId = profileSelect ? profileSelect.value : null;
@@ -1750,51 +1738,62 @@
             const tech = databaseTechnicians.find(t => t.id === techId);
             if (!tech) return;
 
+            // AQUÍ ES DONDE OFICIALMENTE CAMBIA A ASIGNADO
             tech.activeTickets = 1;
             tech.status = "ASIGNADO";
             persistDatabase();
 
-            const clientName = document.getElementById('clientName').value || 'Grupo Modelo';
-            const address = document.getElementById('clientAddress').value || 'San Francisco de Campeche';
-            const issue = document.getElementById('issueType').value || 'Mantenimiento Correctivo PC';
-            const urgency = document.getElementById('urgency').value || 'Alta';
-            const evaluated = lastEvaluatedCandidates.find(c => c.id === techId) || tech;
+            const rawStored = localStorage.getItem('smartlogistics_active_ticket');
+            let activeTicketData;
 
-            const activeTicketData = {
-                techId: tech.id,
-                techName: tech.name,
-                techAddress: tech.address,
-                techLat: tech.lat,
-                techLng: tech.lng,
-                clientName: clientName,
-                clientAddress: address,
-                issue: issue,
-                urgency: urgency,
-                distanceKm: evaluated.distanceKm || '374.01',
-                estimatedTimeMin: evaluated.estimatedTimeMin || 280,
-                kmCost: evaluated.kmCost || '1701.75',
-                tollsCost: evaluated.tollsCost || '0.00',
-                totalCost: evaluated.estimatedCost || '1701.75',
-                altDistanceKm: evaluated.altDistanceKm || evaluated.distanceKm || '374.01',
-                altEstimatedTimeMin: evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin || 280,
-                altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '1701.75',
-                routeGeometryMain: evaluated.routeGeometryMain || null,
-                routeGeometryAlt: evaluated.routeGeometryAlt || null,
-                selectedRoute: activeTechSelectedRoute,
-                status: 'ASIGNADO',
-                assignedAt: new Date().toISOString()
-            };
+            if (rawStored) {
+                activeTicketData = JSON.parse(rawStored);
+                activeTicketData.status = 'ASIGNADO';
+                activeTicketData.techId = tech.id;
+            } else {
+                const clientName = document.getElementById('clientName')?.value || 'Grupo Modelo';
+                const address = document.getElementById('clientAddress')?.value || 'San Francisco de Campeche';
+                const issue = document.getElementById('issueType')?.value || 'Mantenimiento Correctivo PC';
+                const urgency = document.getElementById('urgency')?.value || 'Alta';
+                const evaluated = lastEvaluatedCandidates.find(c => c.id === techId) || tech;
+
+                activeTicketData = {
+                    techId: tech.id,
+                    techName: tech.name,
+                    techAddress: tech.address,
+                    techLat: tech.lat,
+                    techLng: tech.lng,
+                    clientName: clientName,
+                    clientAddress: address,
+                    issue: issue,
+                    urgency: urgency,
+                    distanceKm: evaluated.distanceKm || '374.01',
+                    estimatedTimeMin: evaluated.estimatedTimeMin || 280,
+                    kmCost: evaluated.kmCost || '1701.75',
+                    tollsCost: evaluated.tollsCost || '0.00',
+                    totalCost: evaluated.estimatedCost || '1701.75',
+                    altDistanceKm: evaluated.altDistanceKm || evaluated.distanceKm || '374.01',
+                    altEstimatedTimeMin: evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin || 280,
+                    altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '1701.75',
+                    routeGeometryMain: evaluated.routeGeometryMain || null,
+                    routeGeometryAlt: evaluated.routeGeometryAlt || null,
+                    selectedRoute: activeTechSelectedRoute,
+                    status: 'ASIGNADO',
+                    assignedAt: new Date().toISOString()
+                };
+            }
 
             localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(activeTicketData));
 
             updateTechDropdown();
-            generateAIRecommendation(null);
+            generateAIRecommendation(null); // Actualiza el panel ADMIN a ASIGNADO en tiempo real
             syncTechDeviceView();
             broadcastRealtime('TECH_ACCEPTED_ROUTE', { techId: tech.id });
 
-            alert(`¡Ruta aceptada y asignada!\nTu estado ahora es ASIGNADO y se refleja en el panel del Administrador.`);
+            alert(`¡Ruta aceptada con éxito!\nTu estatus ahora es ASIGNADO y se actualizó en el panel del Administrador.`);
         }
 
+        // SINCRONIZA LA VISTA DEL TÉCNICO EN SU DISPOSITIVO (CELULAR / TABLET)
         function syncTechDeviceView(rebuildRouteChooser = true) {
             const profileSelect = document.getElementById('techProfileSelect');
             let activeTechId = profileSelect ? profileSelect.value : null;
@@ -1820,7 +1819,8 @@
             const routeChooser = document.getElementById('techRouteChooserWrapper');
             const routeSelect = document.getElementById('techRouteSelect');
 
-            const isThisTechAssigned = (ticket && ticket.techId === currentTech.id && ticket.status !== 'CANCELADO') || (currentTech.activeTickets > 0);
+            const isThisTechAssigned = (ticket && ticket.techId === currentTech.id && (ticket.status === 'ASIGNADO' || ticket.status === 'EN_RUTA')) || (currentTech.activeTickets > 0);
+            const isProposalPending = (ticket && ticket.status === 'PROPUESTA_PENDIENTE');
 
             if (profileBadgeEl) {
                 if (currentTech.status === 'STANDBY') {
@@ -1835,7 +1835,7 @@
                 }
             }
 
-            if (ticket && ticket.techId === currentTech.id && ticket.status === 'CANCELADO') {
+            if (ticket && ticket.status === 'CANCELADO') {
                 if (noticeEl) {
                     noticeEl.classList.remove('hidden');
                     document.getElementById('techCancellationReasonText').innerText = `Motivo del cliente: "${ticket.cancellationReason || 'Cancelado por reprogramación'}"`;
@@ -1859,7 +1859,7 @@
                 if (btnRuta) btnRuta.disabled = true;
                 if (btnConcluir) {
                     btnConcluir.disabled = false;
-                    btnConcluir.innerText = 'Limpiar y Quedar Libre';
+                    btnConcluir.innerHTML = 'Limpiar y Quedar Libre';
                 }
 
                 if (techMap && techMapGroup) techMapGroup.clearLayers();
@@ -1867,27 +1867,27 @@
             }
 
             const evaluated = lastEvaluatedCandidates.find(c => c.id === currentTech.id) || currentTech;
-            const clientName = (ticket && ticket.techId === currentTech.id) ? ticket.clientName : (document.getElementById('clientName')?.value || 'Grupo Modelo');
-            const address = (ticket && ticket.techId === currentTech.id) ? ticket.clientAddress : (document.getElementById('clientAddress')?.value || 'San Francisco de Campeche');
-            const issue = (ticket && ticket.techId === currentTech.id) ? ticket.issue : (document.getElementById('issueType')?.value || 'Mantenimiento Correctivo PC');
-            const urgency = (ticket && ticket.techId === currentTech.id) ? ticket.urgency : (document.getElementById('urgency')?.value || 'Alta');
+            const clientName = ticket ? ticket.clientName : (document.getElementById('clientName')?.value || 'Grupo Modelo');
+            const address = ticket ? ticket.clientAddress : (document.getElementById('clientAddress')?.value || 'San Francisco de Campeche');
+            const issue = ticket ? ticket.issue : (document.getElementById('issueType')?.value || 'Mantenimiento Correctivo PC');
+            const urgency = ticket ? ticket.urgency : (document.getElementById('urgency')?.value || 'Alta');
 
             if (noticeEl) noticeEl.classList.add('hidden');
             if (routeChooser) routeChooser.classList.remove('hidden');
 
             if (routeSelect && rebuildRouteChooser) {
                 routeSelect.innerHTML = `
-                    <option value="MAIN">Ruta A (Principal): ${evaluated.distanceKm || '374'} km (~${formatDuration(evaluated.estimatedTimeMin || 280)} | $${evaluated.estimatedCost || '1701.75'})</option>
-                    <option value="ALT">Ruta B (Alterna Tráfico): ${evaluated.altDistanceKm || evaluated.distanceKm || '418'} km (~${formatDuration(evaluated.altEstimatedTimeMin || 330)} | $${evaluated.altEstimatedCost || evaluated.estimatedCost || '1950.00'})</option>
+                    <option value="MAIN">Ruta A (Principal): ${ticket ? ticket.distanceKm : (evaluated.distanceKm || '374')} km (~${formatDuration(ticket ? ticket.estimatedTimeMin : (evaluated.estimatedTimeMin || 280))} | $${ticket ? ticket.totalCost : (evaluated.estimatedCost || '1701.75')})</option>
+                    <option value="ALT">Ruta B (Alterna Tráfico): ${ticket ? ticket.altDistanceKm : (evaluated.altDistanceKm || evaluated.distanceKm || '418')} km (~${formatDuration(ticket ? ticket.altEstimatedTimeMin : (evaluated.altEstimatedTimeMin || 330))} | $${ticket ? ticket.altTotalCost : (evaluated.altEstimatedCost || evaluated.estimatedCost || '1950.00')})</option>
                 `;
                 routeSelect.value = activeTechSelectedRoute;
             }
 
             const isAlt = activeTechSelectedRoute === 'ALT';
-            const activeDist = isAlt ? (evaluated.altDistanceKm || evaluated.distanceKm) : (evaluated.distanceKm || '374.01');
-            const activeTime = isAlt ? (evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin) : (evaluated.estimatedTimeMin || 280);
-            const activeCost = isAlt ? (evaluated.altEstimatedCost || evaluated.estimatedCost) : (evaluated.estimatedCost || '1701.75');
-            const activeGeom = isAlt ? (evaluated.routeGeometryAlt || evaluated.routeGeometryMain) : (evaluated.routeGeometryMain || evaluated.routeGeometryAlt);
+            const activeDist = ticket ? (isAlt ? ticket.altDistanceKm : ticket.distanceKm) : (isAlt ? (evaluated.altDistanceKm || evaluated.distanceKm) : (evaluated.distanceKm || '374.01'));
+            const activeTime = ticket ? (isAlt ? ticket.altEstimatedTimeMin : ticket.estimatedTimeMin) : (isAlt ? (evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin) : (evaluated.estimatedTimeMin || 280));
+            const activeCost = ticket ? (isAlt ? ticket.altTotalCost : ticket.totalCost) : (isAlt ? (evaluated.altEstimatedCost || evaluated.estimatedCost) : (evaluated.estimatedCost || '1701.75'));
+            const activeGeom = ticket ? (isAlt ? (ticket.routeGeometryAlt || ticket.routeGeometryMain) : (ticket.routeGeometryMain || ticket.routeGeometryAlt)) : (isAlt ? (evaluated.routeGeometryAlt || evaluated.routeGeometryMain) : (evaluated.routeGeometryMain || evaluated.routeGeometryAlt));
 
             document.getElementById('techClientName').innerText = clientName;
             document.getElementById('techClientAddress').innerHTML = `<i class="fa-solid fa-location-dot text-red-400 mr-1"></i> ${address}`;
@@ -1908,20 +1908,37 @@
                     btnConcluir.innerHTML = `<i class="fa-solid fa-check-circle"></i> Concluir Servicio y Quedar Libre`;
                 }
                 if (statusEl) {
-                    statusEl.innerText = isEnRuta ? "EN TRASLADO / RUTA" : "ASIGNADO";
+                    statusEl.innerText = isEnRuta ? "EN TRASLADO / RUTA" : "ASIGNADO OFICIALMENTE";
                     statusEl.className = isEnRuta ? "text-blue-400 font-bold" : "text-yellow-400 font-medium";
                 }
                 if (badgeEl) {
                     badgeEl.innerText = isEnRuta ? "EN RUTA" : "TICKET ASIGNADO";
                     badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase";
                 }
-            } else {
-                if (btnTomar) btnTomar.classList.remove('hidden');
+            } else if (isProposalPending) {
+                // Propuesta enviada por admin, pendiente de que el técnico presione "Aceptar"
+                if (btnTomar) {
+                    btnTomar.classList.remove('hidden');
+                    btnTomar.innerHTML = `<i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada`;
+                }
                 if (btnRuta) btnRuta.classList.add('hidden');
                 if (btnConcluir) btnConcluir.disabled = true;
 
                 if (statusEl) {
-                    statusEl.innerText = "RUTA DISPONIBLE PARA ASIGNAR";
+                    statusEl.innerText = "PROPUESTA PENDIENTE DE ACEPTAR";
+                    statusEl.className = "text-amber-400 font-bold animate-pulse";
+                }
+                if (badgeEl) {
+                    badgeEl.innerText = "OFERTA NUEVA";
+                    badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase";
+                }
+            } else {
+                if (btnTomar) btnTomar.classList.add('hidden');
+                if (btnRuta) btnRuta.classList.add('hidden');
+                if (btnConcluir) btnConcluir.disabled = true;
+
+                if (statusEl) {
+                    statusEl.innerText = "DISPONIBLE (SIN RUTA ASIGNADA)";
                     statusEl.className = "text-emerald-400 font-bold";
                 }
                 if (badgeEl) {
@@ -1961,7 +1978,7 @@
             const techId = profileSelect ? profileSelect.value : null;
             const tech = databaseTechnicians.find(t => t.id === techId);
 
-            if (confirm(`¿Confirmas que deseas concluir el servicio?\nEl técnico ${tech ? tech.name : ''} quedará 100% libre en estado DISPONIBLE para recibir o tomar otra ruta.`)) {
+            if (confirm(`¿Confirmas que has concluido el servicio?\nEl técnico ${tech ? tech.name : ''} quedará 100% libre en estado DISPONIBLE para recibir o tomar otra ruta.`)) {
                 if (tech) {
                     tech.activeTickets = 0;
                     tech.status = "DISPONIBLE";
@@ -1980,9 +1997,6 @@
         }
 
         function updateTicketStatus(status) {
-            const profileSelect = document.getElementById('techProfileSelect');
-            const techId = profileSelect ? profileSelect.value : null;
-
             const rawStored = localStorage.getItem('smartlogistics_active_ticket');
             if (rawStored) {
                 const ticket = JSON.parse(rawStored);
@@ -2042,12 +2056,19 @@
 
             const rawTicket = localStorage.getItem('smartlogistics_active_ticket');
             if (rawTicket) {
-                const ticket = JSON.parse(rawTicket);
+                const ticket = JSON.parse(rawStored);
                 if (ticket.techId === tech.id) {
                     ticket.status = 'CANCELADO';
                     ticket.cancellationReason = reason;
                     localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(ticket));
                 }
+            } else {
+                localStorage.setItem('smartlogistics_active_ticket', JSON.stringify({
+                    techId: tech.id,
+                    clientName: clientName,
+                    status: 'CANCELADO',
+                    cancellationReason: reason
+                }));
             }
 
             const cancelMessage = `*CANCELACIÓN DE SERVICIO POR CLIENTE - SMARTLOGISTICS*%0A%0A` +
@@ -2141,11 +2162,9 @@
             }
         }
 
-        // INICIALIZACIÓN AUTOMÁTICA AL CARGAR O REFRESCAR LA PÁGINA
         window.addEventListener('DOMContentLoaded', () => {
             loadPersistedDatabase();
 
-            // Verificar si existe sesión activa previa
             const sessionRaw = localStorage.getItem('smartlogistics_session');
             if (sessionRaw) {
                 try {
@@ -2157,7 +2176,6 @@
                 } catch (e) {}
             }
 
-            // Si no hay sesión, muestra pantalla de login
             document.getElementById('loginView').classList.remove('hidden');
             document.getElementById('appContainer').classList.add('hidden');
         });
