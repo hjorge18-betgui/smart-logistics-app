@@ -506,7 +506,7 @@
                 </div>
 
                 <div class="pt-2 border-t border-slate-800 space-y-2">
-                    <!-- BOTÓN "ACEPTAR Y PONER COMO ASIGNADA" -->
+                    <!-- BOTÓN "ACEPTAR Y PONER COMO ASIGNADA" SIEMPRE DISPONIBLE PARA EL TÉCNICO -->
                     <button id="btnTechTomarRuta" onclick="tomarRutaTecnico()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors">
                         <i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada
                     </button>
@@ -580,16 +580,6 @@
                 }
                 syncTechDeviceView();
             }
-        });
-
-        // Sincronización automática al enfocar la pestaña (ideal para dispositivos móviles y multi-pestaña)
-        window.addEventListener('focus', function() {
-            loadPersistedDatabase();
-            updateTechDropdown();
-            if (!document.getElementById('adminView').classList.contains('hidden')) {
-                generateAIRecommendation(null);
-            }
-            syncTechDeviceView();
         });
 
         function broadcastRealtime(action, payload = {}) {
@@ -1941,7 +1931,7 @@
                     badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase";
                 }
             } else {
-                // Siempre muestra el botón para aceptar y poner como asignada de forma accesible
+                // Siempre muestra el botón para aceptar y poner como asignada cuando está disponible o con propuesta pendiente
                 if (btnTomar) {
                     btnTomar.classList.remove('hidden');
                     btnTomar.innerHTML = `<i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada`;
