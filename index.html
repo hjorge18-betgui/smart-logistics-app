@@ -582,6 +582,16 @@
             }
         });
 
+        // Sincronización automática al enfocar la pestaña (ideal para dispositivos móviles y multi-pestaña)
+        window.addEventListener('focus', function() {
+            loadPersistedDatabase();
+            updateTechDropdown();
+            if (!document.getElementById('adminView').classList.contains('hidden')) {
+                generateAIRecommendation(null);
+            }
+            syncTechDeviceView();
+        });
+
         function broadcastRealtime(action, payload = {}) {
             const data = { action, payload, timestamp: Date.now() };
             if (realtimeChannel) {
@@ -1740,7 +1750,7 @@
             const tech = databaseTechnicians.find(t => t.id === techId);
             if (!tech) return;
 
-            // OFICIALMENTE CAMBIA A ASIGNADO Y SE PERSISTE
+            // OFICIALMENTE CAMBIA A ASIGNADO
             tech.activeTickets = 1;
             tech.status = "ASIGNADO";
             persistDatabase();
@@ -1788,7 +1798,7 @@
             localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(activeTicketData));
 
             updateTechDropdown();
-            generateAIRecommendation(null); // Actualiza la tabla del ADMIN en tiempo real
+            generateAIRecommendation(null); // Actualiza la tabla del ADMIN a ASIGNADO en tiempo real
             syncTechDeviceView();
             broadcastRealtime('TECH_ACCEPTED_ROUTE', { techId: tech.id });
 
@@ -1930,23 +1940,8 @@
                     badgeEl.innerText = isEnRuta ? "EN RUTA" : "TICKET ASIGNADO";
                     badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase";
                 }
-            } else if (isProposalPending) {
-                if (btnTomar) {
-                    btnTomar.classList.remove('hidden');
-                    btnTomar.innerHTML = `<i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada`;
-                }
-                if (btnRuta) btnRuta.classList.add('hidden');
-                if (btnConcluir) btnConcluir.disabled = true;
-
-                if (statusEl) {
-                    statusEl.innerText = "PROPUESTA PENDIENTE DE ACEPTAR";
-                    statusEl.className = "text-amber-400 font-bold animate-pulse";
-                }
-                if (badgeEl) {
-                    badgeEl.innerText = "OFERTA NUEVA";
-                    badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase";
-                }
             } else {
+                // Siempre muestra el botón para aceptar y poner como asignada de forma accesible
                 if (btnTomar) {
                     btnTomar.classList.remove('hidden');
                     btnTomar.innerHTML = `<i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada`;
@@ -1955,12 +1950,12 @@
                 if (btnConcluir) btnConcluir.disabled = true;
 
                 if (statusEl) {
-                    statusEl.innerText = "DISPONIBLE (SELECCIONAR RUTA PROPUESTA)";
-                    statusEl.className = "text-emerald-400 font-bold";
+                    statusEl.innerText = isProposalPending ? "PROPUESTA PENDIENTE DE ACEPTAR" : "DISPONIBLE (SELECCIONAR RUTA)";
+                    statusEl.className = isProposalPending ? "text-amber-400 font-bold animate-pulse" : "text-emerald-400 font-bold";
                 }
                 if (badgeEl) {
-                    badgeEl.innerText = "DISPONIBLE";
-                    badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase";
+                    badgeEl.innerText = isProposalPending ? "OFERTA NUEVA" : "DISPONIBLE";
+                    badgeEl.className = isProposalPending ? "text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase" : "text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase";
                 }
             }
 
