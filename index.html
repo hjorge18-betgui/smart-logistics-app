@@ -238,8 +238,8 @@
                     </div>
 
                     <div class="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-800">
-                        <span>Cálculo vial dinámico con desglose independiente de Casetas y Kilometraje</span>
-                        <span class="text-blue-400 font-semibold">Motor OSRM Carretero Activo</span>
+                        <span>Cálculo vial dinámico con sincronización en tiempo real</span>
+                        <span class="text-blue-400 font-semibold">Canal Real-Time Activo</span>
                     </div>
                 </div>
             </div>
@@ -426,7 +426,7 @@
             </div>
         </main>
 
-        <!-- FIELD TECHNICIAN MOBILE VIEW -->
+        <!-- FIELD TECHNICIAN MOBILE VIEW (DINÁMICO, CON SELECTOR DE PERFIL Y DE RUTA) -->
         <main id="techView" class="hidden flex-1 p-4 max-w-md w-full mx-auto space-y-4">
             <div class="glass-panel p-4 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
@@ -441,35 +441,76 @@
                 </label>
             </div>
 
+            <!-- SELECTOR DE PERFIL DEL TÉCNICO EN EL CELULAR -->
+            <div class="glass-panel p-3.5 rounded-xl border border-slate-800 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-gear text-blue-400"></i> Mi Perfil de Técnico:
+                    </label>
+                    <span id="techProfileBadge" class="text-[9px] px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">DISPONIBLE</span>
+                </div>
+                <select id="techProfileSelect" onchange="onTechProfileSelected()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-blue-500">
+                    <option value="">Cargando técnicos...</option>
+                </select>
+            </div>
+
+            <!-- MAPA DEL TÉCNICO CON RUTA REAL TRAZADA -->
             <div class="glass-panel p-3 rounded-xl border border-slate-800">
                 <div id="techMap"></div>
             </div>
 
+            <!-- TARJETA DEL SERVICIO VINCULADA DINÁMICAMENTE CON SELECCIÓN DE RUTA -->
             <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">Ticket Asignado</span>
-                    <span class="text-xs text-slate-400">SLA: <strong class="text-white">2.0 hrs restantes</strong></span>
+                    <span id="techTicketBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">Ticket Asignado</span>
+                    <span class="text-xs text-slate-400">SLA: <strong id="techTicketSLA" class="text-white">2.0 hrs restantes</strong></span>
                 </div>
 
                 <div>
-                    <h2 class="text-lg font-bold text-white">Grupo Modelo</h2>
-                    <p class="text-xs text-slate-400 mt-1">
+                    <h2 id="techClientName" class="text-lg font-bold text-white">Grupo Modelo</h2>
+                    <p id="techClientAddress" class="text-xs text-slate-400 mt-1">
                         <i class="fa-solid fa-location-dot text-red-400 mr-1"></i>
                         San Francisco de Campeche, Campeche
                     </p>
                 </div>
 
+                <!-- SELECTOR DE RUTA PARA EL TÉCNICO (PRINCIPAL VS ALTERNA) -->
+                <div id="techRouteChooserWrapper" class="bg-slate-900/90 border border-slate-800 p-2.5 rounded-lg space-y-1.5">
+                    <label class="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                        <span><i class="fa-solid fa-route text-blue-400 mr-1"></i> Seleccionar Ruta de Traslado:</span>
+                    </label>
+                    <select id="techRouteSelect" onchange="onTechRouteChange()" class="w-full bg-slate-950 border border-slate-700 rounded p-1.5 text-xs text-white focus:border-blue-500">
+                        <option value="MAIN">Ruta A (Principal) - Calculando...</option>
+                        <option value="ALT">Ruta B (Alterna por Retrasos) - Calculando...</option>
+                    </select>
+                </div>
+
+                <!-- ALERTA DE CANCELACIÓN EN DISPOSITIVO MÓVIL (SI APLICA) -->
+                <div id="techCancellationNotice" class="hidden bg-red-950/40 border border-red-500/40 p-3 rounded-lg text-xs space-y-1">
+                    <p class="text-red-400 font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-ban"></i> Servicio Cancelado por el Cliente
+                    </p>
+                    <p id="techCancellationReasonText" class="text-slate-300 italic text-[11px]">Justificación de cancelación...</p>
+                </div>
+
                 <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1 text-xs">
-                    <p class="text-slate-400">Tipo de Fallo: <span class="text-white font-medium">Mantenimiento Correctivo PC</span></p>
-                    <p class="text-slate-400">Estado: <span id="currentTicketStatus" class="text-yellow-400 font-medium">Asignado</span></p>
+                    <p class="text-slate-400">Tipo de Fallo: <span id="techIssueType" class="text-white font-medium">Mantenimiento Correctivo PC</span></p>
+                    <p class="text-slate-400">Distancia y Tiempo: <span id="techDistanceTime" class="text-white font-medium">-- km / -- min</span></p>
+                    <p class="text-slate-400">Viáticos Estimados: <span id="techTotalCost" class="text-emerald-400 font-bold">$0.00 MXN</span></p>
+                    <p class="text-slate-400">Estado de Ruta: <span id="currentTicketStatus" class="text-yellow-400 font-medium">Asignado</span></p>
                 </div>
 
                 <div class="pt-2 border-t border-slate-800 space-y-2">
-                    <button onclick="updateTicketStatus('EN_RUTA')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg">
-                        <i class="fa-solid fa-person-biking mr-1 text-blue-400"></i> Registrar "En Ruta"
+                    <button id="btnTechTomarRuta" onclick="tomarRutaTecnico()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors">
+                        <i class="fa-solid fa-clipboard-check text-yellow-300"></i> Aceptar y Poner como Asignada
                     </button>
-                    <button onclick="updateTicketStatus('FINALIZADO')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow">
-                        <i class="fa-solid fa-check-circle mr-1"></i> Concluir Servicio
+                    
+                    <button id="btnTechEnRuta" onclick="updateTicketStatus('EN_RUTA')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors">
+                        <i class="fa-solid fa-person-biking text-blue-400"></i> Registrar "En Ruta"
+                    </button>
+
+                    <button id="btnTechConcluir" onclick="concluirServicioTecnico()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow flex items-center justify-center gap-1.5 transition-colors">
+                        <i class="fa-solid fa-check-circle"></i> Concluir Servicio y Quedar Libre
                     </button>
                 </div>
             </div>
@@ -514,6 +555,47 @@
     </div>
 
     <script>
+        // CANAL REAL-TIME ENTRE PESTAÑAS Y DISPOSITIVOS
+        let realtimeChannel = null;
+        try {
+            realtimeChannel = new BroadcastChannel('smartlogistics_realtime');
+            realtimeChannel.onmessage = function(event) {
+                if (event.data && event.data.action) {
+                    handleRealtimeMessage(event.data);
+                }
+            };
+        } catch (e) {
+            console.warn("BroadcastChannel no soportado en este entorno, se usará storage event:", e);
+        }
+
+        // Respaldo de sincronización mediante Storage Event
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'smartlogistics_active_ticket' || e.key === 'smartlogistics_techs_db') {
+                loadPersistedDatabase();
+                updateTechDropdown();
+                if (!document.getElementById('adminView').classList.contains('hidden')) {
+                    generateAIRecommendation(null);
+                }
+                syncTechDeviceView();
+            }
+        });
+
+        function broadcastRealtime(action, payload = {}) {
+            const data = { action, payload, timestamp: Date.now() };
+            if (realtimeChannel) {
+                realtimeChannel.postMessage(data);
+            }
+        }
+
+        function handleRealtimeMessage(msg) {
+            loadPersistedDatabase();
+            updateTechDropdown();
+            if (!document.getElementById('adminView').classList.contains('hidden')) {
+                generateAIRecommendation(null);
+            }
+            syncTechDeviceView();
+        }
+
         // CATÁLOGO COMPLETO DE ESTADOS Y CIUDADES DE MÉXICO
         const mexicoData = {
             "Aguascalientes": ["Aguascalientes", "Jesús María", "Calvillo"],
@@ -551,7 +633,7 @@
         };
 
         // BASE DE DATOS DE TÉCNICOS INICIAL
-        let databaseTechnicians = [
+        const initialTechniciansData = [
             { id: "T-101", name: "ISMAEL JACOME CHAGALA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "T A BARBACHANO M 764 L 5 SACXAN Y N BRAVO LAZARO CARDENAS COL. F. CHETUMAL, Q.R", lat: 18.539505, lng: -88.271435, costPerKm: 3.50, kpiEffectiveness: 100.0, rankingRaw: 1.0, activeTickets: 0, status: "DISPONIBLE", lastCancellationReason: "" },
             { id: "T-102", name: "CARLOS AUGUSTO PRADO ARGUELLO", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "MACARENA 13 FRACC LA GIRALDA JALAPA VERACRUZ", lat: 19.508521, lng: -96.867738, costPerKm: 3.50, kpiEffectiveness: 100.0, rankingRaw: 1.0, activeTickets: 0, status: "DISPONIBLE", lastCancellationReason: "" },
             { id: "T-103", name: "RAMIRO RIOS VALENZUELA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "PICACHOS 332 ORIENTE PRADERAS DEL SUR. CIUDAD JUAREZ", lat: 31.548617, lng: -106.371635, costPerKm: 3.50, kpiEffectiveness: 50.0, rankingRaw: 0.5, activeTickets: 0, status: "DISPONIBLE", lastCancellationReason: "" },
@@ -562,11 +644,34 @@
             { id: "T-108", name: "ALAN HERNANDEZ SEGURA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "AV LA HACIENDA 240 SOLEDAD DE GRACIANO,SLP", lat: 22.183617, lng: -100.940690, costPerKm: 3.50, kpiEffectiveness: 1.0, rankingRaw: 0.01, activeTickets: 0, status: "DISPONIBLE", lastCancellationReason: "" }
         ];
 
+        let databaseTechnicians = [];
+
+        function loadPersistedDatabase() {
+            try {
+                const stored = localStorage.getItem('smartlogistics_techs_db');
+                if (stored) {
+                    databaseTechnicians = JSON.parse(stored);
+                } else {
+                    databaseTechnicians = JSON.parse(JSON.stringify(initialTechniciansData));
+                    persistDatabase();
+                }
+            } catch (e) {
+                databaseTechnicians = JSON.parse(JSON.stringify(initialTechniciansData));
+            }
+        }
+
+        function persistDatabase() {
+            try {
+                localStorage.setItem('smartlogistics_techs_db', JSON.stringify(databaseTechnicians));
+            } catch (e) {}
+        }
+
         let lastEvaluatedCandidates = [];
-        let map, techMap, mapGroup, watchId = null;
+        let map, techMap, mapGroup, techMapGroup, watchId = null;
         let debounceTimer = null;
         let isInternalAddressChange = false;
         let pendingCancelTechId = null;
+        let activeTechSelectedRoute = 'MAIN';
 
         function cleanString(str) {
             return (str || '')
@@ -610,7 +715,9 @@
                 }
             });
 
+            persistDatabase();
             generateAIRecommendation(null);
+            broadcastRealtime('RATES_UPDATED');
         }
 
         function getExcelFieldValue(row, possibleNames) {
@@ -667,22 +774,48 @@
         }
 
         function updateTechDropdown() {
-            const select = document.getElementById('manualTechSelect');
-            if (!select) return;
-            select.innerHTML = '<option value="AUTO">-- Auto Asignar con Algoritmo IA --</option>';
-            databaseTechnicians.forEach(t => {
-                const isAssigned = t.activeTickets > 0;
-                const isStandby = t.status === 'STANDBY';
-                
-                let stateLabel = '';
-                if (isStandby) stateLabel = ' [STANDBY / VACACIONES]';
-                else if (isAssigned) stateLabel = ` [ASIGNADO: ${t.activeTickets} ticket(s)]`;
+            const adminSelect = document.getElementById('manualTechSelect');
+            const techProfileSelect = document.getElementById('techProfileSelect');
 
-                const opt = document.createElement('option');
-                opt.value = t.id;
-                opt.textContent = `${t.name} [${t.id}] - ${t.specialty} (${t.transport})${stateLabel}`;
-                select.appendChild(opt);
-            });
+            if (adminSelect) {
+                const currentAdminVal = adminSelect.value;
+                adminSelect.innerHTML = '<option value="AUTO">-- Auto Asignar con Algoritmo IA --</option>';
+                databaseTechnicians.forEach(t => {
+                    const isAssigned = t.activeTickets > 0;
+                    const isStandby = t.status === 'STANDBY';
+                    
+                    let stateLabel = '';
+                    if (isStandby) stateLabel = ' [STANDBY / VACACIONES]';
+                    else if (isAssigned) stateLabel = ` [ASIGNADO: ${t.activeTickets} ticket(s)]`;
+
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = `${t.name} [${t.id}] - ${t.specialty} (${t.transport})${stateLabel}`;
+                    adminSelect.appendChild(opt);
+                });
+                if (currentAdminVal) adminSelect.value = currentAdminVal;
+            }
+
+            if (techProfileSelect) {
+                const currentVal = techProfileSelect.value;
+                techProfileSelect.innerHTML = '';
+                databaseTechnicians.forEach(t => {
+                    const isAssigned = t.activeTickets > 0;
+                    const isStandby = t.status === 'STANDBY';
+                    let st = isStandby ? ' (STANDBY)' : (isAssigned ? ' (ASIGNADO)' : ' (DISPONIBLE)');
+                    
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = `${t.name} - ${t.transport}${st}`;
+                    techProfileSelect.appendChild(opt);
+                });
+
+                if (currentVal && databaseTechnicians.some(t => t.id === currentVal)) {
+                    techProfileSelect.value = currentVal;
+                } else if (databaseTechnicians.length > 0) {
+                    techProfileSelect.value = databaseTechnicians[0].id;
+                }
+            }
         }
 
         function populateStates() {
@@ -885,7 +1018,6 @@
             return { lat: 20.9328, lng: -89.5614 };
         }
 
-        // CÁLCULO VIAL PRECISO Y REALISTA PARA LA REPÚBLICA MEXICANA
         function calculateRealEstTime(distKm, rawDurationMin, transportType) {
             let isHighway = distKm > 45;
             let avgSpeedKmH = 82;
@@ -909,7 +1041,6 @@
             return Math.round(calculatedMin + (isHighway ? 15 : 5));
         }
 
-        // Genera una geometría alterna visible en carretera evitando colapsos
         function createDetourGeometry(mainCoords) {
             if (!mainCoords || mainCoords.length < 2) return null;
             const len = mainCoords.length;
@@ -928,7 +1059,6 @@
             return { type: "LineString", coordinates: detour };
         }
 
-        // TRAZADO Y CÁLCULO DE RUTA CON ABORTCONTROLLER PARA EVITAR CONGELAMIENTO
         async function fetchOSRMRoute(originLat, originLng, destLat, destLng, transportType) {
             const directDist = calculateHaversineDistance(originLat, originLng, destLat, destLng);
 
@@ -1010,12 +1140,26 @@
             if (!techMap && document.getElementById('techMap')) {
                 techMap = L.map('techMap').setView([20.9328, -89.5614], 13);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(techMap);
+                techMapGroup = L.layerGroup().addTo(techMap);
             }
         }
 
         function handleLogin(e) {
             if (e) e.preventDefault();
             const role = document.getElementById('loginRole').value;
+            const user = document.getElementById('loginUser').value;
+
+            // Guardar sesión activa en localStorage
+            localStorage.setItem('smartlogistics_session', JSON.stringify({
+                role: role,
+                user: user,
+                loggedIn: true
+            }));
+
+            applySessionView(role, user);
+        }
+
+        function applySessionView(role, user) {
             document.getElementById('loginView').classList.add('hidden');
             document.getElementById('appContainer').classList.remove('hidden');
             document.getElementById('roleBadge').innerText = role;
@@ -1034,15 +1178,18 @@
                 document.getElementById('adminView').classList.add('hidden');
                 setTimeout(() => { 
                     initMaps(); 
+                    updateTechDropdown();
                     if (techMap) {
                         techMap.invalidateSize();
                     }
+                    syncTechDeviceView();
                 }, 200);
             }
         }
 
         function handleLogout() {
             if (watchId) navigator.geolocation.clearWatch(watchId);
+            localStorage.removeItem('smartlogistics_session');
             document.getElementById('appContainer').classList.add('hidden');
             document.getElementById('loginView').classList.remove('hidden');
         }
@@ -1132,7 +1279,9 @@
                             lastCancellationReason: ""
                         });
                     }
+                    persistDatabase();
                     updateTechDropdown();
+                    broadcastRealtime('DB_UPDATED');
                 }
                 document.getElementById('importStatus').classList.remove('hidden');
                 document.getElementById('importStatusText').innerText = `${databaseTechnicians.length} técnicos sincronizados.`;
@@ -1162,8 +1311,10 @@
                 alert(`${tech.name} ha sido puesto EN STANDBY.`);
             }
 
+            persistDatabase();
             updateTechDropdown();
             generateAIRecommendation(null);
+            broadcastRealtime('TECH_STATUS_CHANGED');
         }
 
         async function evaluateTechnicians(issue, urgency, clientCoords, manualTechId) {
@@ -1368,7 +1519,6 @@
                     badgeHtml = '<span class="ml-2 px-1.5 py-0.5 text-[9px] bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded font-bold">FORÁNEO</span>';
                 }
 
-                // Generación de botones de acción incluyendo opción de Cancelación si ya está asignado
                 let actionButtonsHtml = `
                     <button onclick="assignTicket('${tech.id}')" ${isStandby ? 'disabled' : ''} class="px-2.5 py-1 ${isAssigned ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} text-white rounded font-bold text-[10px] flex items-center gap-1">
                         <i class="fa-brands fa-whatsapp text-green-300"></i> ${isAssigned ? 'Reasignar' : 'Asignar'}
@@ -1498,6 +1648,7 @@
                     }
 
                     renderCandidatesTable(rankedTechs);
+                    syncTechDeviceView();
                 }
             } catch (error) {
                 console.error("Error en evaluación IA:", error);
@@ -1507,11 +1658,15 @@
             }
         }
 
+        // ASIGNAR TICKET Y SINCRONIZAR
         function assignTicket(techId) {
             const tech = databaseTechnicians.find(t => t.id === techId);
             if (!tech) return;
 
             tech.activeTickets += 1;
+            tech.status = "ASIGNADO";
+            tech.lastCancellationReason = "";
+            persistDatabase();
             updateTechDropdown();
 
             const clientName = document.getElementById('clientName').value;
@@ -1521,6 +1676,32 @@
 
             const evaluated = lastEvaluatedCandidates.find(c => c.id === techId) || tech;
             const phoneTarget = formatPhoneNumber(tech.phone);
+
+            const activeTicketData = {
+                techId: tech.id,
+                techName: tech.name,
+                techAddress: tech.address,
+                techLat: tech.lat,
+                techLng: tech.lng,
+                clientName: clientName,
+                clientAddress: address,
+                issue: issue,
+                urgency: urgency,
+                distanceKm: evaluated.distanceKm || '0.00',
+                estimatedTimeMin: evaluated.estimatedTimeMin || 0,
+                kmCost: evaluated.kmCost || '0.00',
+                tollsCost: evaluated.tollsCost || '0.00',
+                totalCost: evaluated.estimatedCost || '0.00',
+                altDistanceKm: evaluated.altDistanceKm || evaluated.distanceKm || '0.00',
+                altEstimatedTimeMin: evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin || 0,
+                altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '0.00',
+                routeGeometryMain: evaluated.routeGeometryMain || null,
+                routeGeometryAlt: evaluated.routeGeometryAlt || null,
+                status: 'ASIGNADO',
+                assignedAt: new Date().toISOString()
+            };
+
+            localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(activeTicketData));
 
             const message = `*NUEVA ASIGNACIÓN DE SERVICIO - SMARTLOGISTICS*%0A%0A` +
                 `*Hola ${tech.name},* se te ha asignado un nuevo ticket:%0A` +
@@ -1541,13 +1722,278 @@
 
             window.open(waUrl, '_blank');
 
-            alert(`Servicio asignado a ${tech.name}.\nTeléfono: ${tech.phone || 'No especificado'}\nEmail: ${tech.email}`);
+            alert(`Servicio asignado a ${tech.name}.\nRuta reflejada en su dispositivo móvil.`);
             
             document.getElementById('manualTechSelect').value = 'AUTO';
             generateAIRecommendation(null);
+            syncTechDeviceView();
+            broadcastRealtime('TICKET_ASSIGNED', { techId: tech.id });
         }
 
-        // FUNCIONES PARA CANCELAR ASIGNACIÓN CON JUSTIFICACIÓN
+        function onTechProfileSelected() {
+            syncTechDeviceView();
+        }
+
+        function onTechRouteChange() {
+            activeTechSelectedRoute = document.getElementById('techRouteSelect').value;
+            syncTechDeviceView(false);
+        }
+
+        function tomarRutaTecnico() {
+            const profileSelect = document.getElementById('techProfileSelect');
+            const techId = profileSelect ? profileSelect.value : null;
+            if (!techId) {
+                alert("Por favor selecciona tu perfil de técnico.");
+                return;
+            }
+
+            const tech = databaseTechnicians.find(t => t.id === techId);
+            if (!tech) return;
+
+            tech.activeTickets = 1;
+            tech.status = "ASIGNADO";
+            persistDatabase();
+
+            const clientName = document.getElementById('clientName').value || 'Grupo Modelo';
+            const address = document.getElementById('clientAddress').value || 'San Francisco de Campeche';
+            const issue = document.getElementById('issueType').value || 'Mantenimiento Correctivo PC';
+            const urgency = document.getElementById('urgency').value || 'Alta';
+            const evaluated = lastEvaluatedCandidates.find(c => c.id === techId) || tech;
+
+            const activeTicketData = {
+                techId: tech.id,
+                techName: tech.name,
+                techAddress: tech.address,
+                techLat: tech.lat,
+                techLng: tech.lng,
+                clientName: clientName,
+                clientAddress: address,
+                issue: issue,
+                urgency: urgency,
+                distanceKm: evaluated.distanceKm || '374.01',
+                estimatedTimeMin: evaluated.estimatedTimeMin || 280,
+                kmCost: evaluated.kmCost || '1701.75',
+                tollsCost: evaluated.tollsCost || '0.00',
+                totalCost: evaluated.estimatedCost || '1701.75',
+                altDistanceKm: evaluated.altDistanceKm || evaluated.distanceKm || '374.01',
+                altEstimatedTimeMin: evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin || 280,
+                altTotalCost: evaluated.altEstimatedCost || evaluated.estimatedCost || '1701.75',
+                routeGeometryMain: evaluated.routeGeometryMain || null,
+                routeGeometryAlt: evaluated.routeGeometryAlt || null,
+                selectedRoute: activeTechSelectedRoute,
+                status: 'ASIGNADO',
+                assignedAt: new Date().toISOString()
+            };
+
+            localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(activeTicketData));
+
+            updateTechDropdown();
+            generateAIRecommendation(null);
+            syncTechDeviceView();
+            broadcastRealtime('TECH_ACCEPTED_ROUTE', { techId: tech.id });
+
+            alert(`¡Ruta aceptada y asignada!\nTu estado ahora es ASIGNADO y se refleja en el panel del Administrador.`);
+        }
+
+        function syncTechDeviceView(rebuildRouteChooser = true) {
+            const profileSelect = document.getElementById('techProfileSelect');
+            let activeTechId = profileSelect ? profileSelect.value : null;
+
+            if (!activeTechId && databaseTechnicians.length > 0) {
+                activeTechId = databaseTechnicians[0].id;
+                if (profileSelect) profileSelect.value = activeTechId;
+            }
+
+            const currentTech = databaseTechnicians.find(t => t.id === activeTechId);
+            if (!currentTech) return;
+
+            const rawStored = localStorage.getItem('smartlogistics_active_ticket');
+            let ticket = rawStored ? JSON.parse(rawStored) : null;
+
+            const noticeEl = document.getElementById('techCancellationNotice');
+            const statusEl = document.getElementById('currentTicketStatus');
+            const badgeEl = document.getElementById('techTicketBadge');
+            const profileBadgeEl = document.getElementById('techProfileBadge');
+            const btnTomar = document.getElementById('btnTechTomarRuta');
+            const btnRuta = document.getElementById('btnTechEnRuta');
+            const btnConcluir = document.getElementById('btnTechConcluir');
+            const routeChooser = document.getElementById('techRouteChooserWrapper');
+            const routeSelect = document.getElementById('techRouteSelect');
+
+            const isThisTechAssigned = (ticket && ticket.techId === currentTech.id && ticket.status !== 'CANCELADO') || (currentTech.activeTickets > 0);
+
+            if (profileBadgeEl) {
+                if (currentTech.status === 'STANDBY') {
+                    profileBadgeEl.innerText = "STANDBY";
+                    profileBadgeEl.className = "text-[9px] px-2 py-0.5 rounded font-bold bg-slate-700 text-slate-300 border border-slate-600";
+                } else if (isThisTechAssigned) {
+                    profileBadgeEl.innerText = "ASIGNADO (1)";
+                    profileBadgeEl.className = "text-[9px] px-2 py-0.5 rounded font-bold bg-red-500/20 text-red-400 border border-red-500/30";
+                } else {
+                    profileBadgeEl.innerText = "DISPONIBLE";
+                    profileBadgeEl.className = "text-[9px] px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                }
+            }
+
+            if (ticket && ticket.techId === currentTech.id && ticket.status === 'CANCELADO') {
+                if (noticeEl) {
+                    noticeEl.classList.remove('hidden');
+                    document.getElementById('techCancellationReasonText').innerText = `Motivo del cliente: "${ticket.cancellationReason || 'Cancelado por reprogramación'}"`;
+                }
+                document.getElementById('techClientName').innerText = `${ticket.clientName} (CANCELADO)`;
+                document.getElementById('techClientAddress').innerHTML = `<i class="fa-solid fa-ban text-red-400 mr-1"></i> Cancelado por el cliente. No desplazarse.`;
+                document.getElementById('techIssueType').innerText = ticket.issue;
+                document.getElementById('techDistanceTime').innerText = "Ruta cancelada";
+                document.getElementById('techTotalCost').innerText = "$0.00 MXN";
+                document.getElementById('techTicketSLA').innerText = "Cancelado";
+
+                if (statusEl) {
+                    statusEl.innerText = "CANCELADO POR CLIENTE";
+                    statusEl.className = "text-red-400 font-bold";
+                }
+                if (badgeEl) {
+                    badgeEl.innerText = "CANCELADO";
+                    badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 uppercase";
+                }
+                if (btnTomar) btnTomar.classList.add('hidden');
+                if (btnRuta) btnRuta.disabled = true;
+                if (btnConcluir) {
+                    btnConcluir.disabled = false;
+                    btnConcluir.innerText = 'Limpiar y Quedar Libre';
+                }
+
+                if (techMap && techMapGroup) techMapGroup.clearLayers();
+                return;
+            }
+
+            const evaluated = lastEvaluatedCandidates.find(c => c.id === currentTech.id) || currentTech;
+            const clientName = (ticket && ticket.techId === currentTech.id) ? ticket.clientName : (document.getElementById('clientName')?.value || 'Grupo Modelo');
+            const address = (ticket && ticket.techId === currentTech.id) ? ticket.clientAddress : (document.getElementById('clientAddress')?.value || 'San Francisco de Campeche');
+            const issue = (ticket && ticket.techId === currentTech.id) ? ticket.issue : (document.getElementById('issueType')?.value || 'Mantenimiento Correctivo PC');
+            const urgency = (ticket && ticket.techId === currentTech.id) ? ticket.urgency : (document.getElementById('urgency')?.value || 'Alta');
+
+            if (noticeEl) noticeEl.classList.add('hidden');
+            if (routeChooser) routeChooser.classList.remove('hidden');
+
+            if (routeSelect && rebuildRouteChooser) {
+                routeSelect.innerHTML = `
+                    <option value="MAIN">Ruta A (Principal): ${evaluated.distanceKm || '374'} km (~${formatDuration(evaluated.estimatedTimeMin || 280)} | $${evaluated.estimatedCost || '1701.75'})</option>
+                    <option value="ALT">Ruta B (Alterna Tráfico): ${evaluated.altDistanceKm || evaluated.distanceKm || '418'} km (~${formatDuration(evaluated.altEstimatedTimeMin || 330)} | $${evaluated.altEstimatedCost || evaluated.estimatedCost || '1950.00'})</option>
+                `;
+                routeSelect.value = activeTechSelectedRoute;
+            }
+
+            const isAlt = activeTechSelectedRoute === 'ALT';
+            const activeDist = isAlt ? (evaluated.altDistanceKm || evaluated.distanceKm) : (evaluated.distanceKm || '374.01');
+            const activeTime = isAlt ? (evaluated.altEstimatedTimeMin || evaluated.estimatedTimeMin) : (evaluated.estimatedTimeMin || 280);
+            const activeCost = isAlt ? (evaluated.altEstimatedCost || evaluated.estimatedCost) : (evaluated.estimatedCost || '1701.75');
+            const activeGeom = isAlt ? (evaluated.routeGeometryAlt || evaluated.routeGeometryMain) : (evaluated.routeGeometryMain || evaluated.routeGeometryAlt);
+
+            document.getElementById('techClientName').innerText = clientName;
+            document.getElementById('techClientAddress').innerHTML = `<i class="fa-solid fa-location-dot text-red-400 mr-1"></i> ${address}`;
+            document.getElementById('techIssueType').innerText = issue;
+            document.getElementById('techDistanceTime').innerText = `${activeDist} km / ${formatDuration(activeTime)}`;
+            document.getElementById('techTotalCost').innerText = `$${activeCost} MXN`;
+            document.getElementById('techTicketSLA').innerText = urgency === 'Alta' ? '2.0 hrs restantes' : '4.0 hrs restantes';
+
+            if (isThisTechAssigned) {
+                const isEnRuta = (ticket && ticket.status === 'EN_RUTA');
+                if (btnTomar) btnTomar.classList.add('hidden');
+                if (btnRuta) {
+                    btnRuta.classList.remove('hidden');
+                    btnRuta.disabled = isEnRuta;
+                }
+                if (btnConcluir) {
+                    btnConcluir.disabled = false;
+                    btnConcluir.innerHTML = `<i class="fa-solid fa-check-circle"></i> Concluir Servicio y Quedar Libre`;
+                }
+                if (statusEl) {
+                    statusEl.innerText = isEnRuta ? "EN TRASLADO / RUTA" : "ASIGNADO";
+                    statusEl.className = isEnRuta ? "text-blue-400 font-bold" : "text-yellow-400 font-medium";
+                }
+                if (badgeEl) {
+                    badgeEl.innerText = isEnRuta ? "EN RUTA" : "TICKET ASIGNADO";
+                    badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase";
+                }
+            } else {
+                if (btnTomar) btnTomar.classList.remove('hidden');
+                if (btnRuta) btnRuta.classList.add('hidden');
+                if (btnConcluir) btnConcluir.disabled = true;
+
+                if (statusEl) {
+                    statusEl.innerText = "RUTA DISPONIBLE PARA ASIGNAR";
+                    statusEl.className = "text-emerald-400 font-bold";
+                }
+                if (badgeEl) {
+                    badgeEl.innerText = "DISPONIBLE";
+                    badgeEl.className = "text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase";
+                }
+            }
+
+            if (techMap && techMapGroup) {
+                techMapGroup.clearLayers();
+
+                const techMarker = L.marker([currentTech.lat, currentTech.lng]).addTo(techMapGroup)
+                    .bindPopup(`<b>Tu Base / Origen:</b><br>${currentTech.name}<br>${currentTech.address}`);
+
+                let boundsGroup = L.featureGroup([techMarker]);
+
+                if (activeGeom && activeGeom.coordinates) {
+                    const routeCoords = activeGeom.coordinates.map(c => [c[1], c[0]]);
+                    const destCoord = routeCoords[routeCoords.length - 1];
+
+                    const clientMarker = L.marker(destCoord).addTo(techMapGroup)
+                        .bindPopup(`<b>Destino del Servicio:</b><br>${clientName}<br>${address}`);
+                    boundsGroup.addLayer(clientMarker);
+
+                    const polyColor = isAlt ? '#f59e0b' : '#3b82f6';
+                    const poly = L.polyline(routeCoords, { color: polyColor, weight: 5, opacity: 0.9, dashArray: isAlt ? '6, 8' : null }).addTo(techMapGroup);
+                    boundsGroup.addLayer(poly);
+                }
+
+                techMap.invalidateSize();
+                techMap.fitBounds(boundsGroup.getBounds(), { padding: [25, 25] });
+            }
+        }
+
+        function concluirServicioTecnico() {
+            const profileSelect = document.getElementById('techProfileSelect');
+            const techId = profileSelect ? profileSelect.value : null;
+            const tech = databaseTechnicians.find(t => t.id === techId);
+
+            if (confirm(`¿Confirmas que deseas concluir el servicio?\nEl técnico ${tech ? tech.name : ''} quedará 100% libre en estado DISPONIBLE para recibir o tomar otra ruta.`)) {
+                if (tech) {
+                    tech.activeTickets = 0;
+                    tech.status = "DISPONIBLE";
+                    tech.lastCancellationReason = "";
+                }
+
+                localStorage.removeItem('smartlogistics_active_ticket');
+                persistDatabase();
+
+                alert("Servicio concluido exitosamente. El técnico vuelve a estar DISPONIBLE.");
+                updateTechDropdown();
+                generateAIRecommendation(null);
+                syncTechDeviceView();
+                broadcastRealtime('TECH_CONCLUDED_SERVICE', { techId: tech ? tech.id : null });
+            }
+        }
+
+        function updateTicketStatus(status) {
+            const profileSelect = document.getElementById('techProfileSelect');
+            const techId = profileSelect ? profileSelect.value : null;
+
+            const rawStored = localStorage.getItem('smartlogistics_active_ticket');
+            if (rawStored) {
+                const ticket = JSON.parse(rawStored);
+                ticket.status = status;
+                localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(ticket));
+            }
+            syncTechDeviceView();
+            broadcastRealtime('TECH_STATUS_UPDATED', { status });
+            alert(`Estado del servicio actualizado a: ${status}`);
+        }
+
         function openCancelModal(techId) {
             const tech = databaseTechnicians.find(t => t.id === techId);
             if (!tech) return;
@@ -1586,21 +2032,31 @@
                 return;
             }
 
-            // Descuenta la asignación
             tech.activeTickets = Math.max(0, tech.activeTickets - 1);
+            tech.status = "DISPONIBLE";
             tech.lastCancellationReason = `[${new Date().toLocaleDateString('es-MX')} ${new Date().toLocaleTimeString('es-MX')}] ${reason}`;
+            persistDatabase();
 
             const clientName = document.getElementById('clientName').value || 'Cliente';
             const phoneTarget = formatPhoneNumber(tech.phone);
 
-            // Notificación vía WhatsApp al técnico cancelando la ruta
+            const rawTicket = localStorage.getItem('smartlogistics_active_ticket');
+            if (rawTicket) {
+                const ticket = JSON.parse(rawTicket);
+                if (ticket.techId === tech.id) {
+                    ticket.status = 'CANCELADO';
+                    ticket.cancellationReason = reason;
+                    localStorage.setItem('smartlogistics_active_ticket', JSON.stringify(ticket));
+                }
+            }
+
             const cancelMessage = `*CANCELACIÓN DE SERVICIO POR CLIENTE - SMARTLOGISTICS*%0A%0A` +
                 `*Hola ${tech.name},*%0A` +
                 `Te notificamos que el servicio previamente asignado ha sido *CANCELADO POR EL CLIENTE*.%0A%0A` +
                 `• *Cliente:* ${clientName}%0A` +
                 `• *Motivo / Justificación:* ${reason}%0A` +
                 `• *Estatus:* Cancelado / No desplazarse a la ubicación.%0A%0A` +
-                `Tu disponibilidad ha sido restablecida en el sistema.`;
+                `Tu disponibilidad ha sido restablecida en el sistema para recibir una nueva ruta.`;
 
             const waCancelUrl = phoneTarget 
                 ? `https://api.whatsapp.com/send/?phone=${phoneTarget}&text=${cancelMessage}`
@@ -1609,6 +2065,8 @@
             closeCancelModal();
             updateTechDropdown();
             generateAIRecommendation(null);
+            syncTechDeviceView();
+            broadcastRealtime('TICKET_CANCELLED', { techId: tech.id, reason });
 
             if (confirm(`Asignación cancelada con éxito para ${tech.name}.\n\nJustificación registrada:\n"${reason}"\n\n¿Deseas enviar el aviso formal de cancelación al WhatsApp del técnico?`)) {
                 window.open(waCancelUrl, '_blank');
@@ -1683,10 +2141,26 @@
             }
         }
 
-        function updateTicketStatus(status) {
-            document.getElementById('currentTicketStatus').innerText = status;
-            alert(`Estado actualizado a: ${status}`);
-        }
+        // INICIALIZACIÓN AUTOMÁTICA AL CARGAR O REFRESCAR LA PÁGINA
+        window.addEventListener('DOMContentLoaded', () => {
+            loadPersistedDatabase();
+
+            // Verificar si existe sesión activa previa
+            const sessionRaw = localStorage.getItem('smartlogistics_session');
+            if (sessionRaw) {
+                try {
+                    const session = JSON.parse(sessionRaw);
+                    if (session && session.loggedIn) {
+                        applySessionView(session.role, session.user);
+                        return;
+                    }
+                } catch (e) {}
+            }
+
+            // Si no hay sesión, muestra pantalla de login
+            document.getElementById('loginView').classList.remove('hidden');
+            document.getElementById('appContainer').classList.add('hidden');
+        });
     </script>
 </body>
 </html>
