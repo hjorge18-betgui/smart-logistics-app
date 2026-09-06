@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartLogistics - Geocodificador de Plantillas Excel</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding-top: 40px; background-color: #f4f6f9; }
+        .card { background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { padding: 12px 24px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; margin-top: 15px; }
+        .btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #status { margin-top: 20px; font-weight: bold; color: #333; }
+        input[type="file"] { margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>SmartLogistics - Procesador de Coordenadas</h2>
+    <p>Sube tu archivo Excel con direcciones y C.P. para generar y completar automáticamente la <strong>Latitud</strong> y <strong>Longitud</strong>.</p>
+    
+    <input type="file" id="excelFile" accept=".xlsx, .xls" />
+    <br>
+    <button class="btn" id="processBtn" onclick="procesarArchivo()">Procesar y Descargar Excel</button>
+    
+    <div id="status"></div>
+</div>
+
+<script>
+    // Geocodificador Primario: ArcGIS World Geocoding (Alta precisión en México)
+    async function consultarArcGIS(textoBusqueda) {
+        const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(textoBusqueda)}&sourceCountry=MEX&maxLocations=1`;
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data && data.candidates && data.candidates.length > 0) {
+                return {
+                    lat: parseFloat(data.candidates[0].location.y.toFixed(6)),
+                    lon: parseFloat(data.candidates[0].location.x.toFixed(6))
+                };
+            }
+        } catch (e) {
+            console.error("Error ArcGIS:", e);
+        }
+        return null;
+    }
+
+    // Geocodificador Secundario: Nominatim OpenStreetMap
+    async function consultarNominatim(textoBusqueda) {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(textoBusqueda)}&format=json&limit=1&countrycodes=mx`;
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data && data.length > 0) {
+                return {
+                    lat: parseFloat(parseFloat(data[0].lat).toFixed(6)),
+                    lon: parseFloat(parseFloat(data[0].lon).toFixed(6))
+                };
+            }
+        } catch (e) {
+            console.error("Error Nominatim:", e);
+        }
+        return null;
+    }
+
+    // Limpieza profunda de texto
+    function limpiarTexto(direccion) {
+        if (!direccion) return "";
+        return direccion
+            .replace(/[.\,\/]/g, ' ')
+            .replace(/\bCP\.?\s*\d+\b/gi, '')
+            .replace(/\b(M|MANZANA)\s*\d+/gi, '')
+            .replace(/\b(L|LOTE)\s*\d+/gi, '')
+            .replace(/\b(COL|COLONIA)\.?\b/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function obtenerCoordenadasRobusto(direccion, cp) {
+        const dirLimpia = limpiarTexto(direccion);
+        let coords = null;
+
+        // 1. Probar dirección limpia + CP en ArcGIS
+        if (dirLimpia && cp) {
+            coords = await consultarArcGIS(`${dirLimpia}, ${cp}, Mexico`);
+        }
+
+        // 2. Probar solo Dirección Limpia en ArcGIS (Resuelve Caborca y Culiacán inmediatamente)
+        if (!coords && dirLimpia) {
+            coords = await consultarArcGIS(`${dirLimpia}, Mexico`);
+        }
+
+        // 3. Respaldo con Nominatim si ArcGIS no responde
+        if (!coords && dirLimpia) {
+            coords = await consultarNominatim(`${dirLimpia}, Mexico`);
+        }
+
+        // 4. Respaldo por Código Postal únicamente
+        if (!coords && cp && cp.length === 5) {
+            coords = await consultarArcGIS(`${cp}, Mexico`);
+        }
+
+        return coords || { lat: 0, lon: 0 };
+    }
+
+    async function procesarArchivo() {
+        const fileInput = document.getElementById('excelFile');
+        const statusDiv = document.getElementById('status');
+        const btn = document.getElementById('processBtn');
+
+        if (!fileInput.files.length) {
+            alert("Por favor selecciona un archivo Excel primero.");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        btn.disabled = true;
+        statusDiv.innerText = "Leyendo archivo Excel...";
+
+        reader.onload = async function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            const total = jsonRows.length;
+
+            for (let i = 0; i < total; i++) {
+                const fila = jsonRows[i];
+                
+                const nombreTecnico = fila.NOMBRE || fila.Nombre || `Técnico ${i+1}`;
+                const direccion = fila.DIERECCION || fila.DIRECCION || fila.Direccion_Vivienda || fila.Direccion || "";
+                
+                let rawCP = fila["CODIGO POSTAL"] || fila["CODIGO POS"] || fila.CP || fila["Codigo Postal"] || "";
+                let cpStr = rawCP ? String(rawCP).trim().padStart(5, '0') : '';
+
+                if (fila["CODIGO POSTAL"] !== undefined) fila["CODIGO POSTAL"] = cpStr;
+                if (fila["CODIGO POS"] !== undefined) fila["CODIGO POS"] = cpStr;
+                if (fila.CP !== undefined) fila.CP = cpStr;
+
+                statusDiv.innerText = `Geocodificando (${i + 1}/${total}): ${nombreTecnico}...`;
+
+                // Obtención con motor multiorigen
+                const coords = await obtenerCoordenadasRobusto(direccion, cpStr);
+                
+                fila.Latitud = coords.lat;
+                fila.Longitud = coords.lon;
+
+                // Pausa breve para fluidez sin saturar
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+
+            statusDiv.innerText = "Generando nuevo archivo Excel...";
+
+            const newWorksheet = XLSX.utils.json_to_sheet(jsonRows);
+            const newWorkbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, sheetName || "Tecnicos_Base");
+            
+            XLSX.writeFile(newWorkbook, "Plantilla_Tecnicos_SmartLogistics_Coordenadas.xlsx");
+
+            statusDiv.innerText = "¡Proceso finalizado! Todas las coordenadas fueron obtenidas exitosamente.";
+            btn.disabled = false;
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Logistics & FSM Dispatcher | Ruteo, SLAs y Técnicos</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- SheetJS (XLSX) CDN para procesamiento masivo y exportación -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+              900: '#312e81',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Estilos de barras de desplazamiento personalizadas */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+    
+    /* Animación de pulso para tracking GPS */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.3); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .gps-pulse {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+
+    /* Simulación de marco de teléfono móvil */
+    .smartphone-frame {
+      width: 380px;
+      height: 740px;
+      border: 12px solid #0f172a;
+      border-radius: 42px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+  </style>
+</head>
+
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col font-sans antialiased overflow-hidden">
+
+  <!-- ================================================================= -->
+  <!-- 1. ENCABEZADO SUPERIOR & CONFIGURACIÓN DE APIS Y MÉTRICAS         -->
+  <!-- ================================================================= -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-6 py-3 shrink-0">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      
+      <!-- Logotipo y Título -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i data-lucide="route" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg text-white tracking-tight">FSM Dispatcher & Logistics Pro</h1>
+            <span class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 text-xs px-2 py-0.5 rounded-full font-medium">Enterprise v2.5</span>
+          </div>
+          <p class="text-xs text-slate-400">Control de Ruteo Inteligente, SLAs, Validación de Radio (1h) y Técnicos en Campo</p>
+        </div>
+      </div>
+
+      <!-- Conexión de API Key de Google Maps -->
+      <div class="flex items-center gap-2 bg-slate-950/80 p-1.5 px-3 rounded-xl border border-slate-800">
+        <i data-lucide="key" class="w-4 h-4 text-amber-400"></i>
+        <input 
+          type="password" 
+          id="googleApiKeyInput" 
+          placeholder="Google Maps API Key..." 
+          class="bg-transparent text-xs text-slate-200 placeholder-slate-500 focus:outline-none w-44 lg:w-56"
+        />
+        <button 
+          id="btnSaveApiKey" 
+          onclick="guardarYConectarApiKey()" 
+          title="Guardar y conectar con Google Maps"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1 rounded-lg transition font-medium flex items-center gap-1 shadow-sm">
+          <span>Conectar</span>
+        </button>
+        <div id="apiStatusBadge" class="flex items-center gap-1 text-[11px] text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          <span>Modo Demo Activo</span>
+        </div>
+      </div>
+
+      <!-- Botones de Acción Global -->
+      <div class="flex items-center gap-2">
+        <button 
+          onclick="cargarCasosPrueba()" 
+          class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5 font-medium shadow-sm">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span>Cargar Demo</span>
+        </button>
+
+        <button 
+          onclick="descargarPlantillaExcel()" 
+          class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5 font-medium shadow-sm">
+          <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>Plantilla Excel</span>
+        </button>
+
+        <button 
+          onclick="exportarResultadosExcel()" 
+          class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 font-medium shadow-md shadow-emerald-600/20">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>Exportar Resultados</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Barra de KPIs y Métricas en Tiempo Real -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-3 pt-3 border-t border-slate-800/80">
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Servicios</span>
+          <div id="kpiTotalServicios" class="text-lg font-bold text-white leading-none mt-0.5">0</div>
+        </div>
+        <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-400"></i>
+      </div>
+
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">En Radio (≤1h)</span>
+          <div id="kpiEnRadio" class="text-lg font-bold text-emerald-400 leading-none mt-0.5">0</div>
+        </div>
+        <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+      </div>
+
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-rose-400 uppercase tracking-wider font-semibold">Fuera Radio (>1h)</span>
+          <div id="kpiFueraRadio" class="text-lg font-bold text-rose-400 leading-none mt-0.5">0</div>
+        </div>
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-400"></i>
+      </div>
+
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-amber-400 uppercase tracking-wider font-semibold">SLAs En Riesgo</span>
+          <div id="kpiSlaRiesgo" class="text-lg font-bold text-amber-400 leading-none mt-0.5">0</div>
+        </div>
+        <i data-lucide="clock" class="w-5 h-5 text-amber-400"></i>
+      </div>
+
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Aceptados Técnico</span>
+          <div id="kpiAceptados" class="text-lg font-bold text-emerald-400 leading-none mt-0.5">0</div>
+        </div>
+        <i data-lucide="user-check" class="w-5 h-5 text-emerald-400"></i>
+      </div>
+
+      <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-rose-400 uppercase tracking-wider font-semibold">Cancelados Técnico</span>
+          <div id="kpiCancelados" class="text-lg font-bold text-rose-400 leading-none mt-0.5">0</div>
+        </div>
+        <i data-lucide="user-x" class="w-5 h-5 text-rose-400"></i>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================================= -->
+  <!-- 2. CUERPO PRINCIPAL DIVIDIDO EN PANELES                           -->
+  <!-- ================================================================= -->
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- =============================================================== -->
+    <!-- PANEL IZQUIERDO: ENTRADA MANUAL Y CARGA EXCEL                   -->
+    <!-- =============================================================== -->
+    <aside class="w-full lg:w-[460px] bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 overflow-hidden">
+      
+      <!-- Pestañas de Selección: Captura Manual vs Carga Excel -->
+      <div class="flex border-b border-slate-800 bg-slate-950/40 shrink-0">
+        <button 
+          id="tabBtnManual" 
+          onclick="cambiarTab('manual')" 
+          class="flex-1 py-3 px-4 text-xs font-semibold text-indigo-400 border-b-2 border-indigo-500 bg-slate-900 flex items-center justify-center gap-2 transition">
+          <i data-lucide="edit-3" class="w-4 h-4"></i>
+          <span>Captura Manual</span>
+        </button>
+        <button 
+          id="tabBtnExcel" 
+          onclick="cambiarTab('excel')" 
+          class="flex-1 py-3 px-4 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex items-center justify-center gap-2 transition">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+          <span>Carga Masiva Excel</span>
+        </button>
+      </div>
+
+      <!-- CONTENIDO SCROLLABLE DE ENTRADA -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+        
+        <!-- PESTAÑA: CAPTURA MANUAL -->
+        <div id="tabContentManual" class="space-y-4">
+
+          <!-- SECCIÓN 1: DATOS DEL CLIENTE -->
+          <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80 shadow-sm space-y-3">
+            <div class="flex items-center gap-2 text-indigo-400 font-semibold border-b border-slate-800 pb-2">
+              <i data-lucide="building" class="w-4 h-4"></i>
+              <span>1. Datos del Cliente y Destino</span>
+            </div>
+            
+            <div class="grid grid-cols-1 gap-2.5">
+              <div>
+                <label class="block text-slate-400 text-[11px] mb-1 font-medium">Nombre o Razón Social del Cliente</label>
+                <input 
+                  type="text" 
+                  id="cliNombre" 
+                  placeholder="Ej. Hospital Ángeles Lomas / Sucursal BBVA" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-slate-400 text-[11px] mb-1 font-medium">Dirección (Calle y Número)</label>
+                <input 
+                  type="text" 
+                  id="cliDireccion" 
+                  placeholder="Ej. Av. de los Bosques 250" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Estado (México)</label>
+                  <select 
+                    id="cliEstado" 
+                    onchange="actualizarCiudades('cliEstado', 'cliCiudad')"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+                    <option value="">Seleccionar Estado...</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Ciudad / Municipio</label>
+                  <select 
+                    id="cliCiudad" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+                    <option value="">Seleccionar Ciudad...</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Código Postal (CP)</label>
+                  <input 
+                    type="text" 
+                    id="cliCp" 
+                    placeholder="Ej. 52763" 
+                    maxlength="5"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Teléfono Cliente / Contacto</label>
+                  <input 
+                    type="text" 
+                    id="cliTelefono" 
+                    placeholder="Ej. 5512345678" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 2: DATOS DEL TÉCNICO -->
+          <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80 shadow-sm space-y-3">
+            <div class="flex items-center gap-2 text-emerald-400 font-semibold border-b border-slate-800 pb-2">
+              <i data-lucide="user" class="w-4 h-4"></i>
+              <span>2. Datos del Técnico y Ubicación Origen</span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-2.5">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Nombre del Técnico</label>
+                  <input 
+                    type="text" 
+                    id="tecNombre" 
+                    placeholder="Ej. Carlos Mendoza" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">WhatsApp del Técnico</label>
+                  <input 
+                    type="text" 
+                    id="tecTelefono" 
+                    placeholder="Ej. 525544332211" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 text-[11px] mb-1 font-medium">Dirección Base / Ubicación Actual</label>
+                <input 
+                  type="text" 
+                  id="tecDireccion" 
+                  placeholder="Ej. Av. Paseo de la Reforma 222" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Estado (Técnico)</label>
+                  <select 
+                    id="tecEstado" 
+                    onchange="actualizarCiudades('tecEstado', 'tecCiudad')"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+                    <option value="">Seleccionar Estado...</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Ciudad (Técnico)</label>
+                  <select 
+                    id="tecCiudad" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500">
+                    <option value="">Seleccionar Ciudad...</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Código Postal (CP)</label>
+                  <input 
+                    type="text" 
+                    id="tecCp" 
+                    placeholder="Ej. 06600" 
+                    maxlength="5"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label class="block text-slate-400 text-[11px] mb-1 font-medium">Hora de Asignación / Salida</label>
+                  <input 
+                    type="time" 
+                    id="tecHoraInicio" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 3: SLA Y REQUERIMIENTOS -->
+          <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80 shadow-sm space-y-3">
+            <div class="flex items-center gap-2 text-amber-400 font-semibold border-b border-slate-800 pb-2">
+              <i data-lucide="shield-alert" class="w-4 h-4"></i>
+              <span>3. Parámetros de SLA y Herramientas</span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-2.5">
+              <div>
+                <label class="block text-slate-400 text-[11px] mb-1 font-medium">Nivel de SLA Comprometido</label>
+                <select 
+                  id="slaSeleccionado" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-amber-500 font-medium">
+                  <optgroup label="SLA en Horas">
+                    <option value="1h">SLA 1 Hora (Crítico)</option>
+                    <option value="2h" selected>SLA 2 Horas (Alta Prioridad)</option>
+                    <option value="4h">SLA 4 Horas (Estándar)</option>
+                    <option value="8h">SLA 8 Horas (Mismo Día)</option>
+                    <option value="10h">SLA 10 Horas</option>
+                    <option value="12h">SLA 12 Horas</option>
+                  </optgroup>
+                  <optgroup label="SLA en Días">
+                    <option value="1d">SLA 1 Día (24 Horas)</option>
+                    <option value="2d">SLA 2 Días (48 Horas)</option>
+                    <option value="3d">SLA 3 Días (72 Horas)</option>
+                    <option value="4d">SLA 4 Días (96 Horas)</option>
+                    <option value="5d">SLA 5 Días (120 Horas)</option>
+                    <option value="6d">SLA 6 Días (144 Horas)</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 text-[11px] mb-1 font-medium">Herramientas Requeridas en Óptimas Condiciones</label>
+                <input 
+                  type="text" 
+                  id="herramientasReq" 
+                  value="EPP Completo, Multímetro Digital Calibrado, Escalera Dieléctrica, Kit de Fibra Óptica, Laptop de Diagnóstico" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- BOTÓN DE CÁLCULO MANUAL -->
+          <button 
+            type="button" 
+            onclick="calcularRutaYSlaManual()" 
+            class="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-sm">
+            <i data-lucide="zap" class="w-4 h-4"></i>
+            <span>Calcular Ruta, SLA y Costo</span>
+          </button>
+
+        </div>
+
+        <!-- PESTAÑA: CARGA MASIVA EXCEL -->
+        <div id="tabContentExcel" class="hidden space-y-4">
+          
+          <div class="bg-slate-950/70 p-4 rounded-xl border border-slate-800/80 shadow-sm space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span class="text-emerald-400 font-semibold flex items-center gap-1.5">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                <span>Importación Masiva de Servicios</span>
+              </span>
+              <button 
+                onclick="descargarPlantillaExcel()" 
+                class="text-[11px] text-indigo-400 hover:underline flex items-center gap-1">
+                <i data-lucide="file-text" class="w-3 h-3"></i>
+                <span>Descargar formato</span>
+              </button>
+            </div>
+
+            <!-- Zona Drag and Drop -->
+            <div 
+              id="dropZone" 
+              class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-6 text-center bg-slate-900/60 cursor-pointer transition flex flex-col items-center justify-center gap-2"
+              onclick="document.getElementById('excelFileInput').click()"
+              ondragover="event.preventDefault(); this.classList.add('border-indigo-500', 'bg-indigo-500/5')"
+              ondragleave="this.classList.remove('border-indigo-500', 'bg-indigo-500/5')"
+              ondrop="manejarDropExcel(event)">
+              
+              <div class="w-12 h-12 rounded-full bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+              </div>
+              <p class="font-medium text-slate-200">Arrastra tu archivo .xlsx o .csv aquí</p>
+              <p class="text-[11px] text-slate-400">o haz clic para explorar en tu computadora</p>
+              
+              <input 
+                type="file" 
+                id="excelFileInput" 
+                accept=".xlsx, .xls, .csv" 
+                class="hidden" 
+                onchange="procesarArchivoExcel(this.files[0])"
+              />
+            </div>
+
+            <div class="text-[11px] text-slate-400 space-y-1 bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+              <p class="font-semibold text-slate-300">Columnas reconocidas automáticamente:</p>
+              <p class="text-slate-400">Cliente, Dirección Cliente, Ciudad Cliente, Estado Cliente, CP Cliente, Técnico, Dirección Técnico, Ciudad Técnico, Estado Técnico, CP Técnico, Teléfono Técnico, SLA.</p>
+            </div>
+
+            <!-- Barra de Progreso de Procesamiento -->
+            <div id="progresoCargaContainer" class="hidden space-y-1.5 pt-2">
+              <div class="flex justify-between text-[11px]">
+                <span class="text-slate-300">Procesando rutas y geolocalización...</span>
+                <span id="progresoCargaTexto" class="font-bold text-indigo-400">0%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="progresoCargaBarra" class="h-full bg-indigo-500 transition-all duration-300 w-0"></div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+    <!-- =============================================================== -->
+    <!-- PANEL CENTRAL DERECHO: DIVIDIDO ENTRE TABLA Y MAPA INTERACTIVO -->
+    <!-- =============================================================== -->
+    <section class="flex-1 flex flex-col overflow-hidden bg-slate-950">
+
+      <!-- ============================================================= -->
+      <!-- MAPA INTERACTIVO DE GOOGLE MAPS (O VISUALIZADOR DE RUTA)      -->
+      <!-- ============================================================= -->
+      <div class="h-[42%] lg:h-[48%] border-b border-slate-800 relative bg-slate-900 flex flex-col">
+        
+        <!-- Header del Mapa con Controles -->
+        <div class="absolute top-3 left-3 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 shadow-md">
+          <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400"></i>
+          <span id="mapHeaderTitle" class="text-xs font-semibold text-slate-200">Mapa de Operaciones y Ruteo</span>
+          <span id="mapRouteBadge" class="hidden text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-md font-medium border border-indigo-500/30">
+            Ruta Activa
+          </span>
+        </div>
+
+        <!-- Botones de Acción en el Mapa -->
+        <div class="absolute top-3 right-3 z-10 flex items-center gap-2">
+          <button 
+            onclick="centrarMapaMexico()" 
+            class="bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 shadow-md flex items-center gap-1 transition">
+            <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+            <span>Ver México</span>
+          </button>
+        </div>
+
+        <!-- Contenedor del Mapa Real / Canvas Simulado -->
+        <div id="googleMapContainer" class="w-full h-full relative">
+          <!-- Fallback interactivo si aún no hay clave de Google Maps -->
+          <div id="mapFallbackContainer" class="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 select-none overflow-hidden relative">
+            <div class="absolute inset-0 opacity-15 pointer-events-none" style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 24px 24px;"></div>
+            
+            <svg id="svgRouteCanvas" class="w-full h-full absolute inset-0 z-0"></svg>
+            
+            <div class="z-10 text-center max-w-md bg-slate-900/90 p-5 rounded-2xl border border-slate-800/80 shadow-2xl backdrop-blur-md">
+              <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-3 text-indigo-400">
+                <i data-lucide="navigation" class="w-6 h-6"></i>
+              </div>
+              <h3 class="font-bold text-slate-200 text-sm mb-1">Visualizador de Ruteo y Tiempos de Traslado</h3>
+              <p class="text-xs text-slate-400 mb-3">
+                Calculando rutas exactas, validación del radio de 1 hora y SLAs. Para visualizar satélite y tráfico en vivo de Google Maps, ingresa tu API Key arriba.
+              </p>
+              <div class="flex items-center justify-center gap-3 text-[11px] text-slate-300">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Técnico (Origen)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Ruta Óptima</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Cliente (Destino)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contenedor donde Google Maps API inyecta el mapa real -->
+          <div id="realGoogleMap" class="w-full h-full hidden"></div>
+        </div>
+
+        <!-- Tarjeta Flotante con Datos del Servicio Seleccionado en el Mapa -->
+        <div id="selectedServiceCard" class="hidden absolute bottom-3 left-3 right-3 lg:right-auto lg:max-w-md z-10 bg-slate-900/95 backdrop-blur-md p-3 rounded-xl border border-slate-700/80 shadow-xl flex items-center justify-between gap-3 text-xs">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="selCardFolio" class="font-bold text-indigo-400">#TK-1001</span>
+              <span id="selCardSlaBadge" class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400">Cumplido</span>
+            </div>
+            <p id="selCardCliente" class="font-medium text-slate-200 truncate max-w-[240px]">Cliente: Hospital Ángeles</p>
+            <p id="selCardTecnico" class="text-slate-400 text-[11px]">Técnico: Carlos Mendoza</p>
+          </div>
+          <div class="text-right shrink-0">
+            <div id="selCardDistTiempo" class="font-bold text-white text-sm">24.5 km · 38 min</div>
+            <div id="selCardCosto" class="text-emerald-400 font-semibold">$486.25 MXN</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- TABLA DE RESULTADOS, CONTROL DE SLAS Y GESTIÓN EN TIEMPO REAL  -->
+      <!-- ============================================================= -->
+      <div class="flex-1 flex flex-col overflow-hidden p-4">
+        
+        <!-- Barra de Filtros y Búsqueda de la Tabla -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-200 tracking-wide uppercase flex items-center gap-1.5">
+              <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+              <span>Servicios y Despacho en Campo</span>
+            </span>
+            <span id="tablaConteoBadge" class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-semibold border border-slate-700">0</span>
+          </div>
+
+          <!-- Filtros de Estado -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 text-xs">
+            <button onclick="filtrarTabla('todos')" class="filter-btn active-filter px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium transition" data-filter="todos">Todos</button>
+            <button onclick="filtrarTabla('enRadio')" class="filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-medium transition" data-filter="enRadio">En Radio (≤1h)</button>
+            <button onclick="filtrarTabla('fueraRadio')" class="filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-medium transition" data-filter="fueraRadio">Fuera de Radio (>1h)</button>
+            <button onclick="filtrarTabla('slaRiesgo')" class="filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-medium transition" data-filter="slaRiesgo">SLAs Críticos</button>
+            <button onclick="filtrarTabla('aceptados')" class="filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-medium transition" data-filter="aceptados">Aceptados</button>
+          </div>
+        </div>
+
+        <!-- Contenedor con Scroll de la Tabla -->
+        <div class="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-900/60 shadow-inner">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-950/90 text-slate-400 font-semibold sticky top-0 z-10 border-b border-slate-800 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th class="p-3">Folio / Ticket</th>
+                <th class="p-3">Cliente / Ubicación</th>
+                <th class="p-3">Técnico / Asignado</th>
+                <th class="p-3">Distancia / Tiempo</th>
+                <th class="p-3">Filtro Radio (1h)</th>
+                <th class="p-3">Nivel SLA & Estatus</th>
+                <th class="p-3">Costo Traslado</th>
+                <th class="p-3">Aceptación Técnico</th>
+                <th class="p-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaServiciosBody" class="divide-y divide-slate-800/80 text-slate-300 font-normal">
+              <!-- Se generará dinámicamente -->
+              <tr id="emptyRowPlaceholder">
+                <td colspan="9" class="p-8 text-center text-slate-500">
+                  <div class="flex flex-col items-center justify-center gap-2">
+                    <i data-lucide="inbox" class="w-8 h-8 text-slate-600"></i>
+                    <p class="font-medium text-slate-400">No hay servicios registrados aún</p>
+                    <p class="text-[11px] text-slate-500">Captura un servicio manual, carga un archivo Excel o presiona "Cargar Demo" en la barra superior.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- 3. MODAL: DESPACHO Y NOTIFICACIÓN POR WHATSAPP                    -->
+  <!-- ================================================================= -->
+  <div id="modalWhatsApp" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      
+      <!-- Cabecera Modal -->
+      <div class="bg-emerald-600 px-5 py-3.5 flex items-center justify-between text-white">
+        <div class="flex items-center gap-2 font-bold">
+          <i data-lucide="message-square" class="w-5 h-5"></i>
+          <span>Módulo de Despacho & Notificación por WhatsApp</span>
+        </div>
+        <button onclick="cerrarModalWhatsApp()" class="text-white/80 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Contenido Mensaje -->
+      <div class="p-5 space-y-4 text-xs">
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-[11px] leading-relaxed text-slate-200">
+          <div class="text-emerald-400 font-bold text-xs pb-1 border-b border-slate-800 flex items-center gap-1.5">
+            <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+            <span>Previsualización del Mensaje al Técnico:</span>
+          </div>
+          <p id="waMensajePreview" class="whitespace-pre-wrap select-all">Generando mensaje...</p>
+        </div>
+
+        <div class="bg-indigo-950/40 p-3 rounded-xl border border-indigo-800/40 text-slate-300 space-y-1">
+          <p class="font-semibold text-indigo-300 flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+            <span>Simulador de Interacción en Tiempo Real:</span>
+          </p>
+          <p class="text-[11px] text-slate-400">
+            El técnico recibe el mensaje con enlaces de respuesta. También puedes simular la aceptación o rechazo directamente desde este panel para actualizar el estatus de la operación en tiempo real.
+          </p>
+        </div>
+
+        <!-- Botones de Acción de WhatsApp -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+          <button 
+            id="btnEnviarWaReal" 
+            onclick="abrirWhatsAppWeb()" 
+            class="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30">
+            <i data-lucide="send" class="w-4 h-4"></i>
+            <span>Abrir WhatsApp</span>
+          </button>
+
+          <div class="flex gap-2">
+            <button 
+              id="btnSimularAceptar" 
+              onclick="simularRespuestaTecnico(true)" 
+              class="flex-1 py-2.5 px-2 bg-emerald-700/80 hover:bg-emerald-600 text-white font-semibold rounded-xl transition flex items-center justify-center gap-1 border border-emerald-500/30">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Aceptar (Verde)</span>
+            </button>
+            <button 
+              id="btnSimularRechazar" 
+              onclick="simularRespuestaTecnico(false)" 
+              class="flex-1 py-2.5 px-2 bg-rose-700/80 hover:bg-rose-600 text-white font-semibold rounded-xl transition flex items-center justify-center gap-1 border border-rose-500/30">
+              <i data-lucide="x" class="w-4 h-4"></i>
+              <span>Cancelar (Rojo)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- 4. MODAL: VISTA MÓVIL DEL TÉCNICO & SEGUIMIENTO GPS               -->
+  <!-- ================================================================= -->
+  <div id="modalMobileView" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    
+    <div class="relative flex flex-col items-center">
+      <!-- Botón cerrar modal superior -->
+      <button 
+        onclick="cerrarModalMobile()" 
+        class="absolute -top-10 right-0 text-slate-400 hover:text-white flex items-center gap-1 text-xs font-semibold">
+        <span>Cerrar Vista Móvil</span>
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Smartphone Mockup Frame -->
+      <div class="smartphone-frame bg-slate-900 text-slate-100 flex flex-col overflow-hidden relative border-slate-800">
+        
+        <!-- Notch / Bocina Superior -->
+        <div class="h-6 bg-slate-950 w-full flex items-center justify-center relative shrink-0">
+          <div class="w-20 h-4 bg-slate-900 rounded-b-xl flex items-center justify-center">
+            <div class="w-8 h-1 bg-slate-700 rounded-full"></div>
+          </div>
+        </div>
+
+        <!-- Barra de Estado Móvil -->
+        <div class="px-5 py-1 flex items-center justify-between text-[10px] text-slate-400 shrink-0">
+          <span id="mobileClock">10:45</span>
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="wifi" class="w-3 h-3"></i>
+            <i data-lucide="battery-charging" class="w-3 h-3 text-emerald-400"></i>
+          </div>
+        </div>
+
+        <!-- Encabezado de la App Móvil del Técnico -->
+        <div class="px-4 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xs text-white">
+              <i data-lucide="tool" class="w-3.5 h-3.5"></i>
+            </div>
+            <div>
+              <p id="mobileTecNombre" class="font-bold text-xs leading-none text-white">Téc. Carlos Mendoza</p>
+              <span class="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Conectado en campo
+              </span>
+            </div>
+          </div>
+          <span id="mobileTicketBadge" class="text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+            #TK-1001
+          </span>
+        </div>
+
+        <!-- Contenido Móvil Scrollable -->
+        <div class="flex-1 overflow-y-auto p-3.5 space-y-3 text-xs">
+          
+          <!-- Switch de Seguimiento GPS en Tiempo Real -->
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-2.5">
+              <div id="gpsPulseIcon" class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <i data-lucide="radar" class="w-4 h-4 gps-pulse"></i>
+              </div>
+              <div>
+                <p class="font-bold text-xs text-white">Seguimiento GPS Activo</p>
+                <p id="gpsStatusText" class="text-[10px] text-slate-400">Transmitiendo telemetría en vivo</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggleGpsTracking" checked onchange="toggleGps(this.checked)" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+
+          <!-- Tarjeta del Servicio Asignado -->
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2.5 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
+              <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Detalle del Cliente</span>
+              <span id="mobileSlaStatusBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">SLA: 2 Horas</span>
+            </div>
+
+            <div>
+              <p id="mobileCliNombre" class="font-bold text-sm text-white">Hospital Ángeles Lomas</p>
+              <p id="mobileCliDireccion" class="text-slate-300 text-[11px] mt-0.5">Av. de los Bosques 250, Col. Jesús del Monte</p>
+              <p id="mobileCliCiudadEstado" class="text-slate-400 text-[10px]">Huixquilucan, Estado de México - CP 52763</p>
+            </div>
+
+            <!-- Métricas de Ruta -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="bg-slate-900 p-2 rounded-lg border border-slate-800 text-center">
+                <span class="text-[10px] text-slate-400">Distancia Estimada</span>
+                <p id="mobileDistancia" class="font-bold text-indigo-400 text-xs mt-0.5">24.5 km</p>
+              </div>
+              <div class="bg-slate-900 p-2 rounded-lg border border-slate-800 text-center">
+                <span class="text-[10px] text-slate-400">Tiempo de Traslado</span>
+                <p id="mobileTiempo" class="font-bold text-emerald-400 text-xs mt-0.5">38 min</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Herramientas Requeridas en Perfecto Estado -->
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 shadow-sm">
+            <span class="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center gap-1.5">
+              <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+              <span>Herramientas Requeridas (Checklist)</span>
+            </span>
+            <ul id="mobileToolList" class="space-y-1.5 text-[11px] text-slate-300">
+              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> EPP Completo en buenas condiciones</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> Multímetro digital con batería cargada</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> Escalera dieléctrica de seguridad</li>
+              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> Kit de conectorización e instrumental</li>
+            </ul>
+          </div>
+
+          <!-- Estado de Aceptación Actual -->
+          <div id="mobileEstatusAceptacionBox" class="p-3 rounded-xl border text-center font-bold text-xs">
+            Estatus: Pendiente de Confirmación
+          </div>
+
+        </div>
+
+        <!-- Botones de Acción del Técnico en Celular -->
+        <div class="p-3 bg-slate-950 border-t border-slate-800 flex gap-2 shrink-0">
+          <button 
+            id="mobileBtnAceptar" 
+            onclick="accionMobileTecnico(true)" 
+            class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center justify-center gap-1.5 text-xs shadow-lg shadow-emerald-600/30">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span>Aceptar Servicio</span>
+          </button>
+          
+          <button 
+            id="mobileBtnRechazar" 
+            onclick="accionMobileTecnico(false)" 
+            class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition flex items-center justify-center gap-1.5 text-xs shadow-lg shadow-rose-600/30">
+            <i data-lucide="x-circle" class="w-4 h-4"></i>
+            <span>Cancelar</span>
+          </button>
+        </div>
+
+        <!-- Barra de Navegación Inferior Móvil -->
+        <div class="h-4 bg-slate-950 flex items-center justify-center shrink-0">
+          <div class="w-28 h-1 bg-slate-600 rounded-full"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- 5. JAVASCRIPT: LÓGICA DE NEGOCIO, GOOGLE MAPS, SLAS Y DISPATCH    -->
+  <!-- ================================================================= -->
+  <script>
+    /**
+     * CATÁLOGO GEOGRÁFICO DE LA REPÚBLICA MEXICANA (32 ESTADOS Y MUNICIPIOS)
+     * Con coordenadas geográficas representativas para el motor de ruteo y fallback.
+     */
+    const CATALOGO_MEXICO = {
+      "Aguascalientes": { lat: 21.8853, lng: -102.2916, ciudades: ["Aguascalientes", "Jesús María", "Calvillo", "Rincón de Romos", "Pabellón de Arteaga"] },
+      "Baja California": { lat: 32.5149, lng: -117.0382, ciudades: ["Tijuana", "Mexicali", "Ensenada", "Playas de Rosarito", "Tecate", "San Quintín"] },
+      "Baja California Sur": { lat: 24.1426, lng: -110.3128, ciudades: ["La Paz", "Los Cabos", "Cabo San Lucas", "San José del Cabo", "Comondú"] },
+      "Campeche": { lat: 19.8301, lng: -90.5349, ciudades: ["Campeche", "Carmen", "Champotón", "Escárcega", "Calkiní"] },
+      "Chiapas": { lat: 16.7569, lng: -93.1292, ciudades: ["Tuxtla Gutiérrez", "Tapachula", "San Cristóbal de las Casas", "Comitán", "Palenque"] },
+      "Chihuahua": { lat: 28.6353, lng: -106.0889, ciudades: ["Chihuahua", "Ciudad Juárez", "Delicias", "Cuauhtémoc", "Parral", "Nuevo Casas Grandes"] },
+      "Ciudad de México": { lat: 19.4326, lng: -99.1332, ciudades: ["Cuauhtémoc", "Benito Juárez", "Miguel Hidalgo", "Álvaro Obregón", "Coyoacán", "Iztapalapa", "Santa Fe", "Gustavo A. Madero", "Tlalpan", "Polanco"] },
+      "Coahuila": { lat: 25.4260, lng: -101.0053, ciudades: ["Saltillo", "Torreón", "Monclova", "Piedras Negras", "Acuña", "Ramos Arizpe"] },
+      "Colima": { lat: 19.2452, lng: -103.7241, ciudades: ["Colima", "Manzanillo", "Tecomán", "Villa de Álvarez", "Armería"] },
+      "Durango": { lat: 24.0277, lng: -104.6532, ciudades: ["Durango", "Gómez Palacio", "Lerdo", "Santiago Papasquiaro", "El Salto"] },
+      "Estado de México": { lat: 19.2826, lng: -99.6557, ciudades: ["Toluca", "Naucalpan", "Tlalnepantla", "Ecatepec", "Huixquilucan", "Metepec", "Nezahualcóyotl", "Cuautitlán Izcalli"] },
+      "Guanajuato": { lat: 21.0190, lng: -101.2574, ciudades: ["León", "Irapuato", "Celaya", "Guanajuato", "Salamanca", "San Miguel de Allende"] },
+      "Guerrero": { lat: 17.5516, lng: -99.5006, ciudades: ["Acapulco", "Chilpancingo", "Zihuatanejo", "Iguala", "Taxco"] },
+      "Hidalgo": { lat: 20.1011, lng: -98.7591, ciudades: ["Pachuca", "Tulancingo", "Tula de Allende", "Mineral de la Reforma", "Ixmiquilpan"] },
+      "Jalisco": { lat: 20.6597, lng: -103.3496, ciudades: ["Guadalajara", "Zapopan", "Tlaquepaque", "Tonalá", "Tlajomulco de Zúñiga", "Puerto Vallarta"] },
+      "Michoacán": { lat: 19.7060, lng: -101.1950, ciudades: ["Morelia", "Uruapan", "Zamora", "Lázaro Cárdenas", "Pátzcuaro", "Zitácuaro"] },
+      "Morelos": { lat: 18.9242, lng: -99.2216, ciudades: ["Cuernavaca", "Jiutepec", "Cuautla", "Temixco", "Emiliano Zapata"] },
+      "Nayarit": { lat: 21.5039, lng: -104.8946, ciudades: ["Tepic", "Bahía de Banderas", "Compostela", "Santiago Ixcuintla"] },
+      "Nuevo León": { lat: 25.6866, lng: -100.3161, ciudades: ["Monterrey", "San Pedro Garza García", "San Nicolás", "Guadalupe", "Apodaca", "Santa Catarina"] },
+      "Oaxaca": { lat: 17.0732, lng: -96.7266, ciudades: ["Oaxaca de Juárez", "Salina Cruz", "Juchitán", "Huatulco", "Puerto Escondido", "Tuxtepec"] },
+      "Puebla": { lat: 19.0414, lng: -98.2063, ciudades: ["Puebla", "Tehuacán", "San Andrés Cholula", "San Pedro Cholula", "Atlixco", "San Martín Texmelucan"] },
+      "Querétaro": { lat: 20.5888, lng: -100.3899, ciudades: ["Santiago de Querétaro", "San Juan del Río", "Corregidora", "El Marqués", "Tequisquiapan"] },
+      "Quintana Roo": { lat: 21.1619, lng: -86.8515, ciudades: ["Cancún", "Playa del Carmen", "Chetumal", "Cozumel", "Tulum", "Puerto Morelos"] },
+      "San Luis Potosí": { lat: 22.1565, lng: -100.9855, ciudades: ["San Luis Potosí", "Soledad de Graciano Sánchez", "Ciudad Valles", "Matehuala", "Rioverde"] },
+      "Sinaloa": { lat: 24.8091, lng: -107.3940, ciudades: ["Culiacán", "Mazatlán", "Los Mochis", "Guasave", "Navolato"] },
+      "Sonora": { lat: 29.0729, lng: -110.9559, ciudades: ["Hermosillo", "Ciudad Obregón", "Nogales", "San Luis Río Colorado", "Navojoa", "Guaymas"] },
+      "Tabasco": { lat: 17.9892, lng: -92.9281, ciudades: ["Villahermosa", "Cárdenas", "Comalcalco", "Huimanguillo", "Macuspana"] },
+      "Tamaulipas": { lat: 23.7369, lng: -99.1411, ciudades: ["Reynosa", "Matamoros", "Nuevo Laredo", "Tampico", "Ciudad Victoria", "Ciudad Madero"] },
+      "Tlaxcala": { lat: 19.3182, lng: -98.2375, ciudades: ["Tlaxcala", "Apizaco", "Chiautempan", "Huamantla", "San Pablo del Monte"] },
+      "Veracruz": { lat: 19.1738, lng: -96.1342, ciudades: ["Veracruz", "Xalapa", "Coatzacoalcos", "Poza Rica", "Córdoba", "Boca del Río", "Orizaba"] },
+      "Yucatán": { lat: 20.9674, lng: -89.5926, ciudades: ["Mérida", "Valladolid", "Progreso", "Tizimín", "Kanasín", "Umán"] },
+      "Zacatecas": { lat: 22.7709, lng: -102.5832, ciudades: ["Zacatecas", "Guadalupe", "Fresnillo", "Jerez", "Sombrerete"] }
+    };
+
+    /**
+     * ESTADO GLOBAL DE LA APLICACIÓN
+     */
+    let appState = {
+      apiKey: localStorage.getItem('google_maps_api_key') || '',
+      googleMapsLoaded: false,
+      mapInstance: null,
+      directionsService: null,
+      directionsRenderer: null,
+      markers: [],
+      servicios: [],
+      servicioActivoId: null,
+      filtroActual: 'todos',
+      contadorFolio: 1001,
+      // Costos logísticos base
+      tarifaBanderazo: 120.00,  // MXN base por despacho
+      costoPorKm: 14.50,       // MXN por kilómetro
+      cuotaHerramienta: 60.00  // MXN por uso de equipo e instrumental
+    };
+
+    /**
+     * INICIALIZACIÓN AL CARGAR EL DOCUMENTO
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      // Inicializar iconos de Lucide
+      lucide.createIcons();
+
+      // Poblar listas desplegables de estados de México
+      poblarSelectoresEstados();
+
+      // Establecer hora actual por defecto en el formulario
+      const ahora = new Date();
+      const horas = String(ahora.getHours()).padStart(2, '0');
+      const minutos = String(ahora.getMinutes()).padStart(2, '0');
+      document.getElementById('tecHoraInicio').value = `${horas}:${minutos}`;
+
+      // Si existe clave guardada en localStorage, cargarla
+      if (appState.apiKey) {
+        document.getElementById('googleApiKeyInput').value = appState.apiKey;
+        cargarScriptGoogleMaps(appState.apiKey);
+      } else {
+        actualizarBadgeApi(false);
+      }
+
+      // Actualizar reloj móvil simulado
+      setInterval(() => {
+        const d = new Date();
+        const clockEl = document.getElementById('mobileClock');
+        if (clockEl) {
+          clockEl.innerText = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+      }, 1000);
+    });
+
+    /**
+     * POBLAR SELECTORES DE ESTADOS
+     */
+    function poblarSelectoresEstados() {
+      const estados = Object.keys(CATALOGO_MEXICO).sort();
+      const cliSelect = document.getElementById('cliEstado');
+      const tecSelect = document.getElementById('tecEstado');
+
+      estados.forEach(estado => {
+        const opt1 = document.createElement('option');
+        opt1.value = estado;
+        opt1.textContent = estado;
+        cliSelect.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = estado;
+        opt2.textContent = estado;
+        tecSelect.appendChild(opt2);
+      });
+    }
+
+    /**
+     * ACTUALIZACIÓN DINÁMICA DE CIUDADES SEGÚN ESTADO SELECCIONADO
+     */
+    function actualizarCiudades(idEstadoSelect, idCiudadSelect) {
+      const estadoSeleccionado = document.getElementById(idEstadoSelect).value;
+      const ciudadSelect = document.getElementById(idCiudadSelect);
+      ciudadSelect.innerHTML = '<option value="">Seleccionar Ciudad...</option>';
+
+      if (estadoSeleccionado && CATALOGO_MEXICO[estadoSeleccionado]) {
+        CATALOGO_MEXICO[estadoSeleccionado].ciudades.forEach(ciudad => {
+          const opt = document.createElement('option');
+          opt.value = ciudad;
+          opt.textContent = ciudad;
+          ciudadSelect.appendChild(opt);
+        });
+      }
+    }
+
+    /**
+     * ALTERNANCIA DE PESTAÑAS (MANUAL VS EXCEL)
+     */
+    function cambiarTab(tab) {
+      const btnManual = document.getElementById('tabBtnManual');
+      const btnExcel = document.getElementById('tabBtnExcel');
+      const contManual = document.getElementById('tabContentManual');
+      const contExcel = document.getElementById('tabContentExcel');
+
+      if (tab === 'manual') {
+        btnManual.className = "flex-1 py-3 px-4 text-xs font-semibold text-indigo-400 border-b-2 border-indigo-500 bg-slate-900 flex items-center justify-center gap-2 transition";
+        btnExcel.className = "flex-1 py-3 px-4 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex items-center justify-center gap-2 transition";
+        contManual.classList.remove('hidden');
+        contExcel.classList.add('hidden');
+      } else {
+        btnExcel.className = "flex-1 py-3 px-4 text-xs font-semibold text-emerald-400 border-b-2 border-emerald-500 bg-slate-900 flex items-center justify-center gap-2 transition";
+        btnManual.className = "flex-1 py-3 px-4 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent flex items-center justify-center gap-2 transition";
+        contExcel.classList.remove('hidden');
+        contManual.classList.add('hidden');
+      }
+    }
+
+    /**
+     * GESTIÓN Y CONEXIÓN DE GOOGLE MAPS API KEY
+     */
+    function guardarYConectarApiKey() {
+      const key = document.getElementById('googleApiKeyInput').value.trim();
+      if (!key) {
+        alert('Por favor, ingresa una Google Maps API Key válida.');
+        return;
+      }
+
+      appState.apiKey = key;
+      localStorage.setItem('google_maps_api_key', key);
+      cargarScriptGoogleMaps(key);
+    }
+
+    function actualizarBadgeApi(conectado) {
+      const badge = document.getElementById('apiStatusBadge');
+      if (conectado) {
+        badge.className = "flex items-center gap-1 text-[11px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Google Maps Conectado</span>`;
+      } else {
+        badge.className = "flex items-center gap-1 text-[11px] text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Modo Demo Activo</span>`;
+      }
+    }
+
+    function cargarScriptGoogleMaps(apiKey) {
+      if (window.google && window.google.maps) {
+        inicializarGoogleMap();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&callback=googleMapsCallback`;
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => {
+        alert('Error al conectar con Google Maps API. Verifica que la clave sea válida y tenga habilitadas Distance Matrix, Geocoding y Maps JS APIs.');
+        actualizarBadgeApi(false);
+      };
+      document.head.appendChild(script);
+    }
+
+    window.googleMapsCallback = function() {
+      appState.googleMapsLoaded = true;
+      actualizarBadgeApi(true);
+      inicializarGoogleMap();
+    };
+
+    function inicializarGoogleMap() {
+      const realMapDiv = document.getElementById('realGoogleMap');
+      const fallbackDiv = document.getElementById('mapFallbackContainer');
+
+      if (!realMapDiv) return;
+
+      realMapDiv.classList.remove('hidden');
+      fallbackDiv.classList.add('hidden');
+
+      const centroMexico = { lat: 23.6345, lng: -102.5528 };
+
+      appState.mapInstance = new google.maps.Map(realMapDiv, {
+        center: centroMexico,
+        zoom: 5,
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#1e293b" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#0f172a" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#94a3b8" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#334155" }] },
+          { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1e293b" }] },
+          { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#4f46e5" }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: "#090d16" }] }
+        ],
+        disableDefaultUI: false,
+        zoomControl: true
+      });
+
+      appState.directionsService = new google.maps.DirectionsService();
+      appState.directionsRenderer = new google.maps.DirectionsRenderer({
+        map: appState.mapInstance,
+        suppressMarkers: false,
+        polylineOptions: {
+          strokeColor: "#6366f1",
+          strokeWeight: 5,
+          strokeOpacity: 0.9
+        }
+      });
+
+      // Si ya hay un servicio activo, trazarlo
+      if (appState.servicioActivoId) {
+        const serv = appState.servicios.find(s => s.id === appState.servicioActivoId);
+        if (serv) renderizarRutaEnMapa(serv);
+      }
+    }
+
+    /**
+     * CÁLCULO DE DISTANCIA Y RUTA (HÍBRIDO: GOOGLE MAPS O MOTOR LOGÍSTICO DEMO)
+     */
+    async function resolverRutaLogistica(origenStr, destinoStr, origenCoords, destinoCoords) {
+      // 1. Si Google Maps está cargado, intentar obtener Distance Matrix o Directions
+      if (appState.googleMapsLoaded && appState.directionsService) {
+        try {
+          const resultado = await new Promise((resolve, reject) => {
+            appState.directionsService.route(
+              {
+                origin: origenStr,
+                destination: destinoStr,
+                travelMode: google.maps.TravelMode.DRIVING
+              },
+              (response, status) => {
+                if (status === google.maps.DirectionsStatus.OK) {
+                  resolve(response);
+                } else {
+                  reject(status);
+                }
+              }
+            );
+          });
+
+          const route = resultado.routes[0].legs[0];
+          const distanciaKm = parseFloat((route.distance.value / 1000).toFixed(1));
+          const duracionMinutos = Math.round(route.duration.value / 60);
+
+          return {
+            distanciaKm,
+            duracionMinutos,
+            polyline: resultado,
+            origenCoords: { lat: route.start_location.lat(), lng: route.start_location.lng() },
+            destinoCoords: { lat: route.end_location.lat(), lng: route.end_location.lng() }
+          };
+        } catch (e) {
+          console.warn('Fallo en Google Directions, recurriendo a motor logístico de alta precisión:', e);
+        }
+      }
+
+      // 2. Motor de Precisión Logística Integrado (Fórmula Haversine + Factor de Curvatura Vial y Tráfico)
+      const lat1 = origenCoords.lat;
+      const lon1 = origenCoords.lng;
+      const lat2 = destinoCoords.lat;
+      const lon2 = destinoCoords.lng;
+
+      const R = 6371; // Radio de la Tierra en km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distanciaLineal = R * c;
+
+      // Factor de tortuosidad vial promedio en México (carreteras y avenidas urbanas: ~1.28x)
+      const factorCurvatura = distanciaLineal < 40 ? 1.35 : 1.25;
+      const distanciaKm = parseFloat(Math.max(1.5, distanciaLineal * factorCurvatura).toFixed(1));
+
+      // Velocidad promedio estimada según distancia (urbano ~32 km/h, interurbano ~72 km/h)
+      let velocidadPromedio = distanciaKm <= 35 ? 32 : (distanciaKm <= 100 ? 55 : 75);
+      const duracionMinutos = Math.max(8, Math.round((distanciaKm / velocidadPromedio) * 60));
+
+      return {
+        distanciaKm,
+        duracionMinutos,
+        polyline: null,
+        origenCoords,
+        destinoCoords
+      };
+    }
+
+    /**
+     * EVALUACIÓN DEL SLA (SERVICE LEVEL AGREEMENT)
+     * Niveles: 1, 2, 4, 8, 10, 12 horas; 1, 2, 3, 4, 5, 6 días.
+     */
+    function evaluarSLA(tiempoTrasladoMinutos, slaNivel) {
+      let slaMinutosPermitidos = 120; // Default 2h
+
+      const slaMap = {
+        '1h': 60,
+        '2h': 120,
+        '4h': 240,
+        '8h': 480,
+        '10h': 600,
+        '12h': 720,
+        '1d': 1440,
+        '2d': 2880,
+        '3d': 4320,
+        '4d': 5760,
+        '5d': 7200,
+        '6d': 8640
+      };
+
+      if (slaMap[slaNivel]) {
+        slaMinutosPermitidos = slaMap[slaNivel];
+      }
+
+      // Proporción del tiempo consumido solo en el traslado respecto al SLA máximo
+      const ratio = tiempoTrasladoMinutos / slaMinutosPermitidos;
+
+      let estatus = 'Cumplido';
+      let badgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      let icon = 'check-circle-2';
+
+      if (ratio > 1.0) {
+        estatus = 'Incumplido';
+        badgeClass = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+        icon = 'x-circle';
+      } else if (ratio >= 0.70) {
+        estatus = 'En Riesgo';
+        badgeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+        icon = 'alert-triangle';
+      }
+
+      return {
+        estatus,
+        badgeClass,
+        icon,
+        minutosPermitidos: slaMinutosPermitidos,
+        porcentajeUso: Math.round(ratio * 100)
+      };
+    }
+
+    /**
+     * CÁLCULO DE COSTO DE TRANSPORTE
+     */
+    function calcularCostoTransporte(distanciaKm) {
+      const costo = appState.tarifaBanderazo + (distanciaKm * appState.costoPorKm) + appState.cuotaHerramienta;
+      return parseFloat(costo.toFixed(2));
+    }
+
+    /**
+     * CAPTURA Y CÁLCULO MANUAL
+     */
+    async function calcularRutaYSlaManual() {
+      const cliNombre = document.getElementById('cliNombre').value.trim() || 'Cliente Corporativo';
+      const cliDireccion = document.getElementById('cliDireccion').value.trim();
+      const cliEstado = document.getElementById('cliEstado').value;
+      const cliCiudad = document.getElementById('cliCiudad').value;
+      const cliCp = document.getElementById('cliCp').value.trim();
+      const cliTelefono = document.getElementById('cliTelefono').value.trim() || 'No especificado';
+
+      const tecNombre = document.getElementById('tecNombre').value.trim() || 'Técnico Especialista';
+      const tecTelefono = document.getElementById('tecTelefono').value.trim() || '525500000000';
+      const tecDireccion = document.getElementById('tecDireccion').value.trim();
+      const tecEstado = document.getElementById('tecEstado').value;
+      const tecCiudad = document.getElementById('tecCiudad').value;
+      const tecCp = document.getElementById('tecCp').value.trim();
+      const tecHoraInicio = document.getElementById('tecHoraInicio').value || '09:00';
+
+      const slaNivel = document.getElementById('slaSeleccionado').value;
+      const herramientas = document.getElementById('herramientasReq').value.trim();
+
+      if (!cliEstado || !tecEstado) {
+        alert('Por favor selecciona al menos los Estados de la República Mexicana para el Cliente y para el Técnico.');
+        return;
+      }
+
+      const origenStr = `${tecDireccion ? tecDireccion + ', ' : ''}${tecCiudad ? tecCiudad + ', ' : ''}${tecEstado}, México ${tecCp}`;
+      const destinoStr = `${cliDireccion ? cliDireccion + ', ' : ''}${cliCiudad ? cliCiudad + ', ' : ''}${cliEstado}, México ${cliCp}`;
+
+      // Coordenadas base de los estados seleccionados con ligera variación por ciudad
+      const origenBase = CATALOGO_MEXICO[tecEstado] || { lat: 19.4326, lng: -99.1332 };
+      const destinoBase = CATALOGO_MEXICO[cliEstado] || { lat: 19.2826, lng: -99.6557 };
+
+      // Si es el mismo estado pero diferente ciudad o dirección, aplicar pequeño offset realista
+      const seedRandom = (str) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        return ((hash % 1000) / 10000);
+      };
+
+      const origenCoords = { 
+        lat: origenBase.lat + seedRandom(origenStr), 
+        lng: origenBase.lng + seedRandom(tecCiudad || tecDireccion || 'tec') 
+      };
+      const destinoCoords = { 
+        lat: destinoBase.lat + seedRandom(destinoStr), 
+        lng: destinoBase.lng + seedRandom(cliCiudad || cliDireccion || 'cli') 
+      };
+
+      // Resolver cálculo
+      const ruta = await resolverRutaLogistica(origenStr, destinoStr, origenCoords, destinoCoords);
+      const evaluacionSla = evaluarSLA(ruta.duracionMinutos, slaNivel);
+      const costo = calcularCostoTransporte(ruta.distanciaKm);
+
+      // Filtro de Radio Máximo (1 Hora = 60 Minutos)
+      const dentroDeRadio = ruta.duracionMinutos <= 60;
+
+      const nuevoServicio = {
+        id: `TK-${appState.contadorFolio++}`,
+        fechaCreacion: new Date().toISOString(),
+        horaInicio: tecHoraInicio,
+        cliente: {
+          nombre: cliNombre,
+          direccion: cliDireccion || 'Conocida',
+          estado: cliEstado,
+          ciudad: cliCiudad || cliEstado,
+          cp: cliCp || '00000',
+          telefono: cliTelefono
+        },
+        tecnico: {
+          nombre: tecNombre,
+          telefono: tecTelefono,
+          direccion: tecDireccion || 'Base Central',
+          estado: tecEstado,
+          ciudad: tecCiudad || tecEstado,
+          cp: tecCp || '00000'
+        },
+        sla: {
+          nivel: slaNivel,
+          estatus: evaluacionSla.estatus,
+          badgeClass: evaluacionSla.badgeClass,
+          icon: evaluacionSla.icon,
+          minutosPermitidos: evaluacionSla.minutosPermitidos
+        },
+        herramientas: herramientas,
+        ruta: {
+          distanciaKm: ruta.distanciaKm,
+          duracionMinutos: ruta.duracionMinutos,
+          dentroDeRadio: dentroDeRadio,
+          costoEstimado: costo,
+          origenStr: origenStr,
+          destinoStr: destinoStr,
+          origenCoords: ruta.origenCoords,
+          destinoCoords: ruta.destinoCoords,
+          polylineData: ruta.polyline
+        },
+        estatusTecnico: 'Pendiente', // 'Pendiente', 'Aceptado', 'Cancelado'
+        motivoCancelacion: '',
+        gpsTracking: true
+      };
+
+      appState.servicios.unshift(nuevoServicio);
+      appState.servicioActivoId = nuevoServicio.id;
+
+      actualizarKPIs();
+      renderizarTablaServicios();
+      renderizarRutaEnMapa(nuevoServicio);
+
+      // Alerta visual informativa
+      if (!dentroDeRadio) {
+        alert(`⚠️ ADVERTENCIA DE LOGÍSTICA:\nEl tiempo estimado de traslado es de ${ruta.duracionMinutos} minutos (${(ruta.duracionMinutos/60).toFixed(1)} hrs).\n¡SUPERA EL RADIO MÁXIMO DE 1 HORA!\nSe recomienda reasignar a un técnico más cercano.`);
+      }
+    }
+
+    /**
+     * PROCESAMIENTO MASIVO DE ARCHIVO EXCEL (.XLSX / .CSV)
+     */
+    function manejarDropExcel(event) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-500/5');
+      if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+        procesarArchivoExcel(event.dataTransfer.files[0]);
+      }
+    }
+
+    function procesarArchivoExcel(file) {
+      if (!file) return;
+
+      const reader = new FileReader();
+      const progressContainer = document.getElementById('progresoCargaContainer');
+      const progressBar = document.getElementById('progresoCargaBarra');
+      const progressText = document.getElementById('progresoCargaTexto');
+
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '10%';
+      progressText.innerText = 'Leyendo archivo Excel...';
+
+      reader.onload = async function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonFilas = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+          if (jsonFilas.length === 0) {
+            alert('El archivo Excel no contiene filas con datos válidos.');
+            progressContainer.classList.add('hidden');
+            return;
+          }
+
+          let procesados = 0;
+          const total = jsonFilas.length;
+
+          for (const fila of jsonFilas) {
+            // Normalizar nombres de columnas ignorando mayúsculas y acentos
+            const normalizar = (val) => String(val || '').trim();
+            const encontrarCol = (posibles) => {
+              const keys = Object.keys(fila);
+              for (const k of keys) {
+                const cleanKey = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                if (posibles.some(p => cleanKey.includes(p))) {
+                  return normalizar(fila[k]);
+                }
+              }
+              return '';
+            };
+
+            const cliNombre = encontrarCol(['cliente', 'razon']) || `Cliente Masivo ${procesados + 1}`;
+            const cliDir = encontrarCol(['dir cliente', 'direccion cliente', 'calle cliente']) || 'Dirección Centro';
+            const cliCiudad = encontrarCol(['ciudad cliente', 'municipio cliente']) || 'Guadalajara';
+            const cliEstado = normalizarEstado(encontrarCol(['estado cliente', 'entidad cliente']) || 'Jalisco');
+            const cliCp = encontrarCol(['cp cliente', 'codigo postal cliente']) || '44100';
+
+            const tecNombre = encontrarCol(['tecnico', 'nombre tecnico']) || `Técnico Lote ${procesados + 1}`;
+            const tecDir = encontrarCol(['dir tecnico', 'direccion tecnico']) || 'Av. Juárez 100';
+            const tecCiudad = encontrarCol(['ciudad tecnico', 'municipio tecnico']) || 'Zapopan';
+            const tecEstado = normalizarEstado(encontrarCol(['estado tecnico', 'entidad tecnico']) || 'Jalisco');
+            const tecCp = encontrarCol(['cp tecnico', 'codigo postal tecnico']) || '45100';
+            const tecTel = encontrarCol(['telefono', 'whatsapp', 'celular']) || '525512345678';
+            const slaNivel = encontrarCol(['sla', 'prioridad']) || '2h';
+
+            const origenStr = `${tecDir}, ${tecCiudad}, ${tecEstado}, México ${tecCp}`;
+            const destinoStr = `${cliDir}, ${cliCiudad}, ${cliEstado}, México ${cliCp}`;
+
+            const origenBase = CATALOGO_MEXICO[tecEstado] || { lat: 20.6597, lng: -103.3496 };
+            const destinoBase = CATALOGO_MEXICO[cliEstado] || { lat: 20.7167, lng: -103.3833 };
+
+            const seed = procesados * 0.015;
+            const origenCoords = { lat: origenBase.lat + seed, lng: origenBase.lng - seed };
+            const destinoCoords = { lat: destinoBase.lat - seed, lng: destinoBase.lng + seed };
+
+            const ruta = await resolverRutaLogistica(origenStr, destinoStr, origenCoords, destinoCoords);
+            const evalSla = evaluarSLA(ruta.duracionMinutos, slaNivel);
+            const costo = calcularCostoTransporte(ruta.distanciaKm);
+            const dentroDeRadio = ruta.duracionMinutos <= 60;
+
+            appState.servicios.unshift({
+              id: `TK-${appState.contadorFolio++}`,
+              fechaCreacion: new Date().toISOString(),
+              horaInicio: '09:00',
+              cliente: {
+                nombre: cliNombre,
+                direccion: cliDir,
+                ciudad: cliCiudad,
+                estado: cliEstado,
+                cp: cliCp,
+                telefono: '5500000000'
+              },
+              tecnico: {
+                nombre: tecNombre,
+                telefono: tecTel,
+                direccion: tecDir,
+                ciudad: tecCiudad,
+                estado: tecEstado,
+                cp: tecCp
+              },
+              sla: {
+                nivel: slaNivel,
+                estatus: evalSla.estatus,
+                badgeClass: evalSla.badgeClass,
+                icon: evalSla.icon,
+                minutosPermitidos: evalSla.minutosPermitidos
+              },
+              herramientas: 'EPP Certificado, Multímetro de Precisión, Herramientas en óptimo estado',
+              ruta: {
+                distanciaKm: ruta.distanciaKm,
+                duracionMinutos: ruta.duracionMinutos,
+                dentroDeRadio: dentroDeRadio,
+                costoEstimado: costo,
+                origenStr: origenStr,
+                destinoStr: destinoStr,
+                origenCoords: ruta.origenCoords,
+                destinoCoords: ruta.destinoCoords,
+                polylineData: ruta.polyline
+              },
+              estatusTecnico: 'Pendiente',
+              motivoCancelacion: '',
+              gpsTracking: true
+            });
+
+            procesados++;
+            const pct = Math.round((procesados / total) * 100);
+            progressBar.style.width = `${pct}%`;
+            progressText.innerText = `${pct}% (${procesados}/${total} procesados)`;
+          }
+
+          setTimeout(() => {
+            progressContainer.classList.add('hidden');
+            progressBar.style.width = '0%';
+            actualizarKPIs();
+            renderizarTablaServicios();
+            if (appState.servicios.length > 0) {
+              appState.servicioActivoId = appState.servicios[0].id;
+              renderizarRutaEnMapa(appState.servicios[0]);
+            }
+            alert(`¡Carga masiva completada exitosamente!\nSe procesaron ${total} servicios con cálculo de distancias, validación de radio (1h) y SLAs.`);
+          }, 400);
+
+        } catch (err) {
+          console.error(err);
+          alert('Error al procesar el archivo Excel. Verifica que tenga un formato tabular válido.');
+          progressContainer.classList.add('hidden');
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function normalizarEstado(str) {
+      if (!str) return 'Ciudad de México';
+      const clean = str.trim().toLowerCase();
+      const keys = Object.keys(CATALOGO_MEXICO);
+      for (const k of keys) {
+        if (k.toLowerCase().includes(clean) || clean.includes(k.toLowerCase())) {
+          return k;
+        }
+      }
+      return 'Ciudad de México';
+    }
+
+    /**
+     * DESCARGAR PLANTILLA EXCEL DE EJEMPLO
+     */
+    function descargarPlantillaExcel() {
+      const datosPlantilla = [
+        {
+          "Cliente": "Sucursal Citibanamex Perisur",
+          "Dirección Cliente": "Anillo Periférico 4690",
+          "Ciudad Cliente": "Coyoacán",
+          "Estado Cliente": "Ciudad de México",
+          "CP Cliente": "04500",
+          "Técnico": "Roberto Aguilar",
+          "Dirección Técnico": "Calzada del Hueso 1100",
+          "Ciudad Técnico": "Tlalpan",
+          "Estado Técnico": "Ciudad de México",
+          "CP Técnico": "14300",
+          "Teléfono Técnico": "525544332211",
+          "SLA": "2h"
+        },
+        {
+          "Cliente": "Parque Industrial Toluca 2000",
+          "Dirección Cliente": "Calle 5 Este 102",
+          "Ciudad Cliente": "Toluca",
+          "Estado Cliente": "Estado de México",
+          "CP Cliente": "50200",
+          "Técnico": "Miguel Ángel Soto",
+          "Dirección Técnico": "Av. Paseo Tollocan 800",
+          "Ciudad Técnico": "Metepec",
+          "Estado Técnico": "Estado de México",
+          "CP Técnico": "52140",
+          "Teléfono Técnico": "527221234567",
+          "SLA": "1h"
+        },
+        {
+          "Cliente": "Plaza Galerías Guadalajara",
+          "Dirección Cliente": "Av. Rafael Sanzio 150",
+          "Ciudad Cliente": "Zapopan",
+          "Estado Cliente": "Jalisco",
+          "CP Cliente": "45030",
+          "Técnico": "Jorge Luis Estrada",
+          "Dirección Técnico": "Av. Vallarta 3233",
+          "Ciudad Técnico": "Guadalajara",
+          "Estado Técnico": "Jalisco",
+          "CP Técnico": "44110",
+          "Teléfono Técnico": "523319876543",
+          "SLA": "4h"
+        },
+        {
+          "Cliente": "Planta Ensambladora Ramos Arizpe",
+          "Dirección Cliente": "Carretera Saltillo-Mty Km 12",
+          "Ciudad Cliente": "Ramos Arizpe",
+          "Estado Cliente": "Coahuila",
+          "CP Cliente": "25900",
+          "Técnico": "Fernando Valdés",
+          "Dirección Técnico": "Blvd. Venustiano Carranza 3000",
+          "Ciudad Técnico": "Saltillo",
+          "Estado Técnico": "Coahuila",
+          "CP Técnico": "25280",
+          "Teléfono Técnico": "528441122334",
+          "SLA": "1d"
+        }
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(datosPlantilla);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Servicios_FSM_Plantilla");
+      XLSX.writeFile(wb, "Plantilla_Carga_Masiva_FSM.xlsx");
+    }
+
+    /**
+     * EXPORTAR RESULTADOS COMPLETOS A EXCEL
+     */
+    function exportarResultadosExcel() {
+      if (appState.servicios.length === 0) {
+        alert('No hay servicios registrados para exportar.');
+        return;
+      }
+
+      const datosExportar = appState.servicios.map(s => ({
+        "Folio Ticket": s.id,
+        "Fecha Registro": s.fechaCreacion.substring(0, 10),
+        "Hora Asignación": s.horaInicio,
+        "Cliente": s.cliente.nombre,
+        "Dirección Cliente": s.cliente.direccion,
+        "Ciudad Cliente": s.cliente.ciudad,
+        "Estado Cliente": s.cliente.estado,
+        "CP Cliente": s.cliente.cp,
+        "Técnico Asignado": s.tecnico.nombre,
+        "WhatsApp Técnico": s.tecnico.telefono,
+        "Dirección Técnico": s.tecnico.direccion,
+        "Ciudad Técnico": s.tecnico.ciudad,
+        "Estado Técnico": s.tecnico.estado,
+        "CP Técnico": s.tecnico.cp,
+        "Distancia Estimada (KM)": s.ruta.distanciaKm,
+        "Tiempo Traslado (Minutos)": s.ruta.duracionMinutos,
+        "Filtro Radio 1 Hora": s.ruta.dentroDeRadio ? "DENTRO DE RADIO (<= 1h)" : "FUERA DE RADIO (> 1h - REASIGNAR)",
+        "Nivel SLA": s.sla.nivel,
+        "Estatus Cumplimiento SLA": s.sla.estatus,
+        "Costo Traslado (MXN)": s.ruta.costoEstimado,
+        "Estatus Aceptación Técnico": s.estatusTecnico,
+        "Motivo Cancelación": s.motivoCancelacion || 'N/A',
+        "Herramientas Obligatorias": s.herramientas
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(datosExportar);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Resultados_Ruteo_FSM");
+      const fechaHoy = new Date().toISOString().substring(0, 10);
+      XLSX.writeFile(wb, `Reporte_Logistica_FSM_${fechaHoy}.xlsx`);
+    }
+
+    /**
+     * CARGAR CASOS DE DEMOSTRACIÓN PRE-CONFIGURADOS
+     */
+    async function cargarCasosPrueba() {
+      const casosDemo = [
+        {
+          cliNombre: "Centro Financiero Santa Fe",
+          cliDir: "Av. Vasco de Quiroga 3800",
+          cliCd: "Santa Fe",
+          cliEst: "Ciudad de México",
+          cliCp: "05348",
+          tecNombre: "Carlos Mendoza",
+          tecTel: "525544332211",
+          tecDir: "Av. Paseo de la Reforma 222",
+          tecCd: "Cuauhtémoc",
+          tecEst: "Ciudad de México",
+          tecCp: "06600",
+          sla: "2h",
+          hora: "09:15"
+        },
+        {
+          cliNombre: "Cedis Cuautitlán Izcalli",
+          cliDir: "Autopista México-Querétaro Km 43",
+          cliCd: "Cuautitlán Izcalli",
+          cliEst: "Estado de México",
+          cliCp: "54720",
+          tecNombre: "Alejandro Morales",
+          tecTel: "525588997766",
+          tecDir: "Calzada de Tlalpan 1900",
+          tecCd: "Benito Juárez",
+          tecEst: "Ciudad de México",
+          tecCp: "03510",
+          sla: "1h", // Caso que superará el radio de 1h para demostrar alerta
+          hora: "10:30"
+        },
+        {
+          cliNombre: "Hospital San Javier",
+          cliDir: "Av. Pablo Casals 640",
+          cliCd: "Guadalajara",
+          cliEst: "Jalisco",
+          cliCp: "44670",
+          tecNombre: "David Villaseñor",
+          tecTel: "523311223344",
+          tecDir: "Av. Chapultepec Sur 220",
+          tecCd: "Guadalajara",
+          tecEst: "Jalisco",
+          tecCp: "44160",
+          sla: "4h",
+          hora: "11:00"
+        },
+        {
+          cliNombre: "Planta Cervecera Apodaca",
+          cliDir: "Blvd. Julian Treviño 200",
+          cliCd: "Apodaca",
+          cliEst: "Nuevo León",
+          cliCp: "66634",
+          tecNombre: "Raúl Garza Treviño",
+          tecTel: "528188223344",
+          tecDir: "Av. Constitución 400",
+          tecCd: "Monterrey",
+          tecEst: "Nuevo León",
+          tecCp: "64000",
+          sla: "2h",
+          hora: "12:15"
+        }
+      ];
+
+      for (const caso of casosDemo) {
+        const origenStr = `${caso.tecDir}, ${caso.tecCd}, ${caso.tecEst}, México ${caso.tecCp}`;
+        const destinoStr = `${caso.cliDir}, ${caso.cliCd}, ${caso.cliEst}, México ${caso.cliCp}`;
+
+        const origenBase = CATALOGO_MEXICO[caso.tecEst] || { lat: 19.4326, lng: -99.1332 };
+        const destinoBase = CATALOGO_MEXICO[caso.cliEst] || { lat: 19.2826, lng: -99.6557 };
+
+        const seed = Math.random() * 0.05;
+        const origenCoords = { lat: origenBase.lat + seed, lng: origenBase.lng - seed };
+        const destinoCoords = { lat: destinoBase.lat - seed, lng: destinoBase.lng + seed };
+
+        const ruta = await resolverRutaLogistica(origenStr, destinoStr, origenCoords, destinoCoords);
+        const evalSla = evaluarSLA(ruta.duracionMinutos, caso.sla);
+        const costo = calcularCostoTransporte(ruta.distanciaKm);
+        const dentroDeRadio = ruta.duracionMinutos <= 60;
+
+        appState.servicios.unshift({
+          id: `TK-${appState.contadorFolio++}`,
+          fechaCreacion: new Date().toISOString(),
+          horaInicio: caso.hora,
+          cliente: {
+            nombre: caso.cliNombre,
+            direccion: caso.cliDir,
+            ciudad: caso.cliCd,
+            estado: caso.cliEst,
+            cp: caso.cliCp,
+            telefono: '5512345678'
+          },
+          tecnico: {
+            nombre: caso.tecNombre,
+            telefono: caso.tecTel,
+            direccion: caso.tecDir,
+            ciudad: caso.tecCd,
+            estado: caso.tecEst,
+            cp: caso.tecCp
+          },
+          sla: {
+            nivel: caso.sla,
+            estatus: evalSla.estatus,
+            badgeClass: evalSla.badgeClass,
+            icon: evalSla.icon,
+            minutosPermitidos: evalSla.minutosPermitidos
+          },
+          herramientas: 'EPP Completo Certificado, Multímetro Digital Calibrado, Escalera Dieléctrica, Kit de Fibra Óptica',
+          ruta: {
+            distanciaKm: ruta.distanciaKm,
+            duracionMinutos: ruta.duracionMinutos,
+            dentroDeRadio: dentroDeRadio,
+            costoEstimado: costo,
+            origenStr: origenStr,
+            destinoStr: destinoStr,
+            origenCoords: ruta.origenCoords,
+            destinoCoords: ruta.destinoCoords,
+            polylineData: ruta.polyline
+          },
+          estatusTecnico: 'Pendiente',
+          motivoCancelacion: '',
+          gpsTracking: true
+        });
+      }
+
+      actualizarKPIs();
+      renderizarTablaServicios();
+      if (appState.servicios.length > 0) {
+        seleccionarServicio(appState.servicios[0].id);
+      }
+    }
+
+    /**
+     * ACTUALIZACIÓN DE KPIS DE LA BARRA SUPERIOR
+     */
+    function actualizarKPIs() {
+      const total = appState.servicios.length;
+      const enRadio = appState.servicios.filter(s => s.ruta.dentroDeRadio).length;
+      const fueraRadio = appState.servicios.filter(s => !s.ruta.dentroDeRadio).length;
+      const slaRiesgo = appState.servicios.filter(s => s.sla.estatus === 'En Riesgo' || s.sla.estatus === 'Incumplido').length;
+      const aceptados = appState.servicios.filter(s => s.estatusTecnico === 'Aceptado').length;
+      const cancelados = appState.servicios.filter(s => s.estatusTecnico === 'Cancelado').length;
+
+      document.getElementById('kpiTotalServicios').innerText = total;
+      document.getElementById('kpiEnRadio').innerText = enRadio;
+      document.getElementById('kpiFueraRadio').innerText = fueraRadio;
+      document.getElementById('kpiSlaRiesgo').innerText = slaRiesgo;
+      document.getElementById('kpiAceptados').innerText = aceptados;
+      document.getElementById('kpiCancelados').innerText = cancelados;
+    }
+
+    /**
+     * FILTRAR TABLA
+     */
+    function filtrarTabla(tipo) {
+      appState.filtroActual = tipo;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        if (b.getAttribute('data-filter') === tipo) {
+          b.className = "filter-btn active-filter px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium transition";
+        } else {
+          b.className = "filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-medium transition";
+        }
+      });
+      renderizarTablaServicios();
+    }
+
+    /**
+     * RENDERIZAR TABLA DE SERVICIOS
+     */
+    function renderizarTablaServicios() {
+      const tbody = document.getElementById('tablaServiciosBody');
+      tbody.innerHTML = '';
+
+      let serviciosFiltrados = appState.servicios;
+      if (appState.filtroActual === 'enRadio') {
+        serviciosFiltrados = serviciosFiltrados.filter(s => s.ruta.dentroDeRadio);
+      } else if (appState.filtroActual === 'fueraRadio') {
+        serviciosFiltrados = serviciosFiltrados.filter(s => !s.ruta.dentroDeRadio);
+      } else if (appState.filtroActual === 'slaRiesgo') {
+        serviciosFiltrados = serviciosFiltrados.filter(s => s.sla.estatus === 'En Riesgo' || s.sla.estatus === 'Incumplido');
+      } else if (appState.filtroActual === 'aceptados') {
+        serviciosFiltrados = serviciosFiltrados.filter(s => s.estatusTecnico === 'Aceptado');
+      }
+
+      document.getElementById('tablaConteoBadge').innerText = serviciosFiltrados.length;
+
+      if (serviciosFiltrados.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="9" class="p-8 text-center text-slate-500">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <i data-lucide="filter-x" class="w-8 h-8 text-slate-600"></i>
+                <p class="font-medium text-slate-400">No hay servicios que coincidan con este filtro</p>
+              </div>
+            </td>
+          </tr>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      serviciosFiltrados.forEach(s => {
+        const tr = document.createElement('tr');
+        const esActivo = s.id === appState.servicioActivoId;
+        tr.className = `border-b border-slate-800/80 hover:bg-slate-800/40 transition cursor-pointer ${esActivo ? 'bg-indigo-950/30 border-l-4 border-l-indigo-500' : ''}`;
+        
+        // Estatus Técnico Badge
+        let tecBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">⏳ Pendiente</span>';
+        if (s.estatusTecnico === 'Aceptado') {
+          tecBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🟢 Aceptado</span>';
+        } else if (s.estatusTecnico === 'Cancelado') {
+          tecBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30">🔴 Cancelado</span>';
+        }
+
+        // Filtro Radio Badge (<= 1h)
+        let radioBadge = s.ruta.dentroDeRadio
+          ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> En Radio (≤1h)</span>'
+          : '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Fuera Radio (>1h)</span>';
+
+        tr.onclick = (e) => {
+          // Si el clic no fue en los botones de acción, seleccionar fila y enfocar en mapa
+          if (!e.target.closest('button')) {
+            seleccionarServicio(s.id);
+          }
+        };
+
+        tr.innerHTML = `
+          <td class="p-3 font-mono font-bold text-indigo-400 whitespace-nowrap">${s.id}</td>
+          <td class="p-3">
+            <div class="font-semibold text-white truncate max-w-[170px]">${s.cliente.nombre}</div>
+            <div class="text-[11px] text-slate-400 truncate max-w-[170px]">${s.cliente.ciudad}, ${s.cliente.estado}</div>
+          </td>
+          <td class="p-3">
+            <div class="font-medium text-slate-200 truncate max-w-[150px]">${s.tecnico.nombre}</div>
+            <div class="text-[11px] text-slate-400 truncate max-w-[150px]">Salida: ${s.horaInicio} hrs</div>
+          </td>
+          <td class="p-3 whitespace-nowrap">
+            <div class="font-bold text-slate-100">${s.ruta.distanciaKm} km</div>
+            <div class="text-[11px] text-indigo-400 font-semibold">${s.ruta.duracionMinutos} min traslado</div>
+          </td>
+          <td class="p-3 whitespace-nowrap">${radioBadge}</td>
+          <td class="p-3 whitespace-nowrap">
+            <div class="flex items-center gap-1.5">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${s.sla.badgeClass}">
+                SLA ${s.sla.nivel.toUpperCase()}: ${s.sla.estatus}
+              </span>
+            </div>
+          </td>
+          <td class="p-3 font-semibold text-emerald-400 whitespace-nowrap">
+            $${s.ruta.costoEstimado.toFixed(2)} MXN
+          </td>
+          <td class="p-3 whitespace-nowrap">
+            ${tecBadge}
+          </td>
+          <td class="p-3 text-right whitespace-nowrap">
+            <div class="flex items-center justify-end gap-1.5">
+              <button 
+                onclick="abrirModalWhatsApp('${s.id}')" 
+                title="Despachar por WhatsApp"
+                class="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white transition border border-emerald-500/30">
+                <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+              </button>
+
+              <button 
+                onclick="abrirModalMobile('${s.id}')" 
+                title="Ver Vista Móvil del Técnico"
+                class="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white transition border border-indigo-500/30">
+                <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+              </button>
+
+              <button 
+                onclick="eliminarServicio('${s.id}')" 
+                title="Eliminar Servicio"
+                class="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition border border-slate-700">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      lucide.createIcons();
+    }
+
+    /**
+     * SELECCIONAR Y ENFOCAR SERVICIO
+     */
+    function seleccionarServicio(id) {
+      appState.servicioActivoId = id;
+      const serv = appState.servicios.find(s => s.id === id);
+      if (!serv) return;
+
+      renderizarTablaServicios();
+      renderizarRutaEnMapa(serv);
+      actualizarTarjetaFlotanteMapa(serv);
+    }
+
+    function eliminarServicio(id) {
+      if (confirm(`¿Deseas eliminar el servicio ${id}?`)) {
+        appState.servicios = appState.servicios.filter(s => s.id !== id);
+        if (appState.servicioActivoId === id) {
+          appState.servicioActivoId = appState.servicios.length > 0 ? appState.servicios[0].id : null;
+        }
+        actualizarKPIs();
+        renderizarTablaServicios();
+        if (appState.servicioActivoId) {
+          const s = appState.servicios.find(x => x.id === appState.servicioActivoId);
+          renderizarRutaEnMapa(s);
+        } else {
+          document.getElementById('selectedServiceCard').classList.add('hidden');
+        }
+      }
+    }
+
+    /**
+     * RENDERIZAR RUTA EN EL MAPA (GOOGLE MAPS O SVG CANVAS INTERACTIVO)
+     */
+    function renderizarRutaEnMapa(servicio) {
+      if (!servicio) return;
+
+      actualizarTarjetaFlotanteMapa(servicio);
+
+      // CASO 1: Google Maps Real
+      if (appState.googleMapsLoaded && appState.mapInstance) {
+        if (servicio.ruta.polylineData && appState.directionsRenderer) {
+          appState.directionsRenderer.setDirections(servicio.ruta.polylineData);
+        } else {
+          // Si no hay DirectionsRenderer precalculado, solicitarlo o trazar marcadores
+          const origen = new google.maps.LatLng(servicio.ruta.origenCoords.lat, servicio.ruta.origenCoords.lng);
+          const destino = new google.maps.LatLng(servicio.ruta.destinoCoords.lat, servicio.ruta.destinoCoords.lng);
+
+          appState.directionsService.route({
+            origin: origen,
+            destination: destino,
+            travelMode: google.maps.TravelMode.DRIVING
+          }, (res, status) => {
+            if (status === 'OK') {
+              appState.directionsRenderer.setDirections(res);
+            } else {
+              // Centrar entre ambos puntos
+              const bounds = new google.maps.LatLngBounds();
+              bounds.extend(origen);
+              bounds.extend(destino);
+              appState.mapInstance.fitBounds(bounds);
+            }
+          });
+        }
+        return;
+      }
+
+      // CASO 2: Canvas SVG de Alta Fidelidad para Modo Fallback/Demo
+      const svg = document.getElementById('svgRouteCanvas');
+      if (!svg) return;
+
+      const rect = svg.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 350;
+
+      // Puntos relativos estilizados
+      const x1 = w * 0.25;
+      const y1 = h * 0.70;
+      const x2 = w * 0.75;
+      const y2 = h * 0.30;
+      const cx = (x1 + x2) / 2 + (Math.sin(w) * 30);
+      const cy = (y1 + y2) / 2 - 40;
+
+      svg.innerHTML = `
+        <defs>
+          <linearGradient id="gradRuta" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#10b981" />
+            <stop offset="50%" stop-color="#6366f1" />
+            <stop offset="100%" stop-color="#f43f5e" />
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="glow" />
+            <feComposite in="SourceGraphic" in2="glow" operator="over" />
+          </filter>
+        </defs>
+
+        <!-- Trayectoria Curva de la Ruta -->
+        <path d="M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}" 
+              fill="none" 
+              stroke="#1e293b" 
+              stroke-width="10" 
+              stroke-linecap="round" />
+
+        <path d="M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}" 
+              fill="none" 
+              stroke="url(#gradRuta)" 
+              stroke-width="4" 
+              stroke-dasharray="6,6"
+              stroke-linecap="round"
+              filter="url(#glow)">
+          <animate attributeName="stroke-dashoffset" from="100" to="0" dur="4s" repeatCount="indefinite" />
+        </path>
+
+        <!-- Marcador Origen (Técnico) -->
+        <g transform="translate(${x1}, ${y1})">
+          <circle r="14" fill="#10b981" opacity="0.3" class="gps-pulse" />
+          <circle r="9" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+          <text y="24" text-anchor="middle" fill="#10b981" font-size="11" font-weight="bold">
+            Técnico: ${servicio.tecnico.nombre}
+          </text>
+        </g>
+
+        <!-- Marcador Destino (Cliente) -->
+        <g transform="translate(${x2}, ${y2})">
+          <circle r="14" fill="#f43f5e" opacity="0.3" class="gps-pulse" />
+          <circle r="9" fill="#f43f5e" stroke="#ffffff" stroke-width="2.5" />
+          <text y="-16" text-anchor="middle" fill="#f43f5e" font-size="11" font-weight="bold">
+            Cliente: ${servicio.cliente.nombre}
+          </text>
+        </g>
+      `;
+    }
+
+    function actualizarTarjetaFlotanteMapa(servicio) {
+      const card = document.getElementById('selectedServiceCard');
+      if (!card || !servicio) return;
+
+      card.classList.remove('hidden');
+      document.getElementById('selCardFolio').innerText = `#${servicio.id}`;
+      document.getElementById('selCardCliente').innerText = `Cliente: ${servicio.cliente.nombre} (${servicio.cliente.ciudad})`;
+      document.getElementById('selCardTecnico').innerText = `Técnico: ${servicio.tecnico.nombre} (${servicio.tecnico.telefono})`;
+      document.getElementById('selCardDistTiempo').innerText = `${servicio.ruta.distanciaKm} km · ${servicio.ruta.duracionMinutos} min`;
+      document.getElementById('selCardCosto').innerText = `$${servicio.ruta.costoEstimado.toFixed(2)} MXN`;
+
+      const slaBadge = document.getElementById('selCardSlaBadge');
+      slaBadge.className = `px-1.5 py-0.5 rounded text-[10px] font-semibold ${servicio.sla.badgeClass}`;
+      slaBadge.innerText = `SLA ${servicio.sla.nivel}: ${servicio.sla.estatus}`;
+    }
+
+    function centrarMapaMexico() {
+      if (appState.googleMapsLoaded && appState.mapInstance) {
+        appState.mapInstance.setCenter({ lat: 23.6345, lng: -102.5528 });
+        appState.mapInstance.setZoom(5);
+      }
+    }
+
+    /**
+     * MÓDULO DE DESPACHO & NOTIFICACIÓN POR WHATSAPP
+     */
+    let servicioModalWa = null;
+
+    function abrirModalWhatsApp(id) {
+      const serv = appState.servicios.find(s => s.id === id);
+      if (!serv) return;
+
+      servicioModalWa = serv;
+      const modal = document.getElementById('modalWhatsApp');
+      modal.classList.remove('hidden');
+
+      // Generación del texto formal y estructurado de WhatsApp
+      const texto = 
+`🚨 *ASIGNACIÓN DE SERVICIO DE CAMPO | LOGÍSTICA BET-GUI* 🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *Ticket:* #${serv.id}
+⏱️ *SLA Comprometido:* ${serv.sla.nivel.toUpperCase()} (${serv.sla.estatus})
+⏰ *Hora de Asignación:* ${serv.horaInicio} hrs
+
+👤 *DATOS DEL CLIENTE:*
+• *Razón Social:* ${serv.cliente.nombre}
+• *Dirección:* ${serv.cliente.direccion}
+• *Ubicación:* ${serv.cliente.ciudad}, ${serv.cliente.estado} (CP ${serv.cliente.cp})
+• *Contacto:* ${serv.cliente.telefono}
+
+🗺️ *DATOS DE RUTA & TRASLADO:*
+• *Distancia Estimada:* ${serv.ruta.distanciaKm} km
+• *Tiempo de Traslado:* ${serv.ruta.duracionMinutos} minutos
+• *Radio de Operación:* ${serv.ruta.dentroDeRadio ? '✅ DENTRO DE RADIO (<=1h)' : '⚠️ FUERA DE RADIO (>1h)'}
+
+🛠️ *REQUERIMIENTOS OBLIGATORIOS:*
+"${serv.herramientas}"
+_Nota: Todo el equipo debe portarse en óptimas condiciones de seguridad y calibración vigente._
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📲 *CONFIRMACIÓN OBLIGATORIA DEL TÉCNICO:*
+Por favor responde de inmediato a este mensaje seleccionando una opción:
+🟢 *ACEPTAR:* Responde "ACEPTO #${serv.id}"
+🔴 *RECHAZAR:* Responde "CANCELO #${serv.id}" con el motivo.`;
+
+      document.getElementById('waMensajePreview').innerText = texto;
+      lucide.createIcons();
+    }
+
+    function cerrarModalWhatsApp() {
+      document.getElementById('modalWhatsApp').classList.add('hidden');
+      servicioModalWa = null;
+    }
+
+    function abrirWhatsAppWeb() {
+      if (!servicioModalWa) return;
+      const texto = encodeURIComponent(document.getElementById('waMensajePreview').innerText);
+      const telefonoLimpio = servicioModalWa.tecnico.telefono.replace(/[^0-9]/g, '');
+      const url = `https://api.whatsapp.com/send?phone=${telefonoLimpio}&text=${texto}`;
+      window.open(url, '_blank');
+    }
+
+    function simularRespuestaTecnico(aceptado) {
+      if (!servicioModalWa) return;
+
+      if (aceptado) {
+        servicioModalWa.estatusTecnico = 'Aceptado';
+        servicioModalWa.motivoCancelacion = '';
+        alert(`✅ Servicio #${servicioModalWa.id} ACEPTADO por el técnico ${servicioModalWa.tecnico.nombre}.\nEl panel de administración se ha actualizado en tiempo real.`);
+      } else {
+        const motivo = prompt('Ingresa el motivo de cancelación o rechazo del técnico:', 'Técnico atendiendo otra emergencia / Falta de material');
+        if (motivo === null) return;
+        servicioModalWa.estatusTecnico = 'Cancelado';
+        servicioModalWa.motivoCancelacion = motivo || 'Rechazado por el técnico';
+        alert(`🔴 Servicio #${servicioModalWa.id} CANCELADO por el técnico.\nMotivo: ${servicioModalWa.motivoCancelacion}\nEl despachador debe proceder con la reasignación.`);
+      }
+
+      actualizarKPIs();
+      renderizarTablaServicios();
+      cerrarModalWhatsApp();
+    }
+
+    /**
+     * VISTA MÓVIL DEL TÉCNICO Y SEGUIMIENTO GPS
+     */
+    let servicioModalMobile = null;
+
+    function abrirModalMobile(id) {
+      const serv = appState.servicios.find(s => s.id === id);
+      if (!serv) return;
+
+      servicioModalMobile = serv;
+      const modal = document.getElementById('modalMobileView');
+      modal.classList.remove('hidden');
+
+      document.getElementById('mobileTecNombre').innerText = `Téc. ${serv.tecnico.nombre}`;
+      document.getElementById('mobileTicketBadge').innerText = `#${serv.id}`;
+      document.getElementById('mobileCliNombre').innerText = serv.cliente.nombre;
+      document.getElementById('mobileCliDireccion').innerText = serv.cliente.direccion;
+      document.getElementById('mobileCliCiudadEstado').innerText = `${serv.cliente.ciudad}, ${serv.cliente.estado} - CP ${serv.cliente.cp}`;
+      document.getElementById('mobileDistancia').innerText = `${serv.ruta.distanciaKm} km`;
+      document.getElementById('mobileTiempo').innerText = `${serv.ruta.duracionMinutos} min`;
+      document.getElementById('mobileSlaStatusBadge').innerText = `SLA ${serv.sla.nivel.toUpperCase()}: ${serv.sla.estatus}`;
+
+      const toggle = document.getElementById('toggleGpsTracking');
+      toggle.checked = serv.gpsTracking !== false;
+      toggleGps(toggle.checked);
+
+      actualizarMobileEstatusUI(serv);
+      lucide.createIcons();
+    }
+
+    function cerrarModalMobile() {
+      document.getElementById('modalMobileView').classList.add('hidden');
+      servicioModalMobile = null;
+    }
+
+    function toggleGps(activo) {
+      if (servicioModalMobile) {
+        servicioModalMobile.gpsTracking = activo;
+      }
+      const icon = document.getElementById('gpsPulseIcon');
+      const text = document.getElementById('gpsStatusText');
+
+      if (activo) {
+        icon.className = "w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center";
+        icon.innerHTML = `<i data-lucide="radar" class="w-4 h-4 gps-pulse"></i>`;
+        text.innerText = "Transmitiendo telemetría en vivo";
+        text.className = "text-[10px] text-emerald-400 font-medium";
+      } else {
+        icon.className = "w-8 h-8 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center";
+        icon.innerHTML = `<i data-lucide="radio-off" class="w-4 h-4"></i>`;
+        text.innerText = "Transmisión en pausa";
+        text.className = "text-[10px] text-slate-400";
+      }
+      lucide.createIcons();
+    }
+
+    function accionMobileTecnico(aceptar) {
+      if (!servicioModalMobile) return;
+
+      if (aceptar) {
+        servicioModalMobile.estatusTecnico = 'Aceptado';
+        servicioModalMobile.motivoCancelacion = '';
+      } else {
+        const motivo = prompt('Motivo de rechazo desde la app móvil:', 'Tráfico excesivo / Fuera de horario');
+        if (motivo === null) return;
+        servicioModalMobile.estatusTecnico = 'Cancelado';
+        servicioModalMobile.motivoCancelacion = motivo;
+      }
+
+      actualizarMobileEstatusUI(servicioModalMobile);
+      actualizarKPIs();
+      renderizarTablaServicios();
+    }
+
+    function actualizarMobileEstatusUI(serv) {
+      const box = document.getElementById('mobileEstatusAceptacionBox');
+      if (serv.estatusTecnico === 'Aceptado') {
+        box.className = "p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-center font-bold text-xs";
+        box.innerHTML = "✅ Servicio Aceptado por el Técnico";
+      } else if (serv.estatusTecnico === 'Cancelado') {
+        box.className = "p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-400 text-center font-bold text-xs";
+        box.innerHTML = `🔴 Cancelado: ${serv.motivoCancelacion || 'Rechazado'}`;
+      } else {
+        box.className = "p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-400 text-center font-bold text-xs";
+        box.innerHTML = "⏳ Pendiente de Confirmación del Técnico";
+      }
+    }
+  </script>
+
+</body>
+</html>

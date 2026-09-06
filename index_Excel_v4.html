@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartLogistics - Geocodificador de Plantillas Excel</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding-top: 40px; background-color: #f4f6f9; }
+        .card { background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn { padding: 12px 24px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; margin-top: 15px; }
+        .btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #status { margin-top: 20px; font-weight: bold; color: #333; }
+        input[type="file"] { margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>SmartLogistics - Procesador de Coordenadas</h2>
+    <p>Sube tu archivo Excel con direcciones y C.P. para generar y completar automáticamente la <strong>Latitud</strong> y <strong>Longitud</strong>.</p>
+    
+    <input type="file" id="excelFile" accept=".xlsx, .xls" />
+    <br>
+    <button class="btn" id="processBtn" onclick="procesarArchivo()">Procesar y Descargar Excel</button>
+    
+    <div id="status"></div>
+</div>
+
+<script>
+    // Limpieza de texto de dirección para optimizar la respuesta del API Nominatim
+    function limpiarDireccion(direccion) {
+        if (!direccion) return "";
+        return direccion
+            .replace(/\bCP\.?\s*\d+\b/gi, '')
+            .replace(/\b(M|MANZANA)\s*\d+/gi, '')
+            .replace(/\b(L|LOTE)\s*\d+/gi, '')
+            .replace(/\b(COL|COLONIA)\.?\b/gi, '')
+            .replace(/\b(FRACC|FRACCIONAMIENTO)\.?\b/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function hacerConsulta(query) {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=mx`;
+        try {
+            const response = await fetch(url, {
+                headers: { 'User-Agent': 'SmartLogisticsApp/2.0' }
+            });
+            const data = await response.json();
+            if (data && data.length > 0) {
+                return {
+                    lat: parseFloat(data[0].lat),
+                    lon: parseFloat(data[0].lon)
+                };
+            }
+        } catch (error) {
+            console.error("Error consultando:", query, error);
+        }
+        return null;
+    }
+
+    async function obtenerCoordenadasExactas(direccion, cp) {
+        const direccionLimpia = limpiarDireccion(direccion);
+        let coords = null;
+
+        // Intento 1: Dirección completa + Código Postal + México
+        if (direccionLimpia && cp) {
+            coords = await hacerConsulta(`${direccionLimpia}, ${cp}, Mexico`);
+        }
+
+        // Intento 2: Dirección limpia + México
+        if (!coords && direccionLimpia) {
+            await new Promise(r => setTimeout(r, 800));
+            coords = await hacerConsulta(`${direccionLimpia}, Mexico`);
+        }
+
+        // Intento 3: Código Postal + México (fallback de precisión por zona)
+        if (!coords && cp) {
+            await new Promise(r => setTimeout(r, 800));
+            coords = await hacerConsulta(`CP ${cp}, Mexico`);
+        }
+
+        return coords || { lat: null, lon: null };
+    }
+
+    async function procesarArchivo() {
+        const fileInput = document.getElementById('excelFile');
+        const statusDiv = document.getElementById('status');
+        const btn = document.getElementById('processBtn');
+
+        if (!fileInput.files.length) {
+            alert("Por favor selecciona un archivo Excel primero.");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        btn.disabled = true;
+        statusDiv.innerText = "Leyendo archivo Excel...";
+
+        reader.onload = async function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            const total = jsonRows.length;
+
+            for (let i = 0; i < total; i++) {
+                const fila = jsonRows[i];
+                
+                // Mapeo flexible de nombres de columna para compatibilidad
+                const nombreTecnico = fila.NOMBRE || fila.Nombre || `Técnico ${i+1}`;
+                const direccion = fila.DIERECCION || fila.DIRECCION || fila.Direccion_Vivienda || fila.Direccion || "";
+                
+                let rawCP = fila["CODIGO POSTAL"] || fila.CP || fila["Codigo Postal"] || "";
+                let cpStr = rawCP ? String(rawCP).trim().padStart(5, '0') : '';
+                
+                if (fila["CODIGO POSTAL"]) fila["CODIGO POSTAL"] = cpStr;
+                if (fila.CP) fila.CP = cpStr;
+
+                statusDiv.innerText = `Geocodificando (${i + 1}/${total}): ${nombreTecnico}...`;
+
+                // Recalcular coordenadas exactas en base a la Dirección y C.P.
+                const coords = await obtenerCoordenadasExactas(direccion, cpStr);
+                
+                fila.Latitud = coords.lat !== null ? coords.lat : (fila.Latitud || 0);
+                fila.Longitud = coords.lon !== null ? coords.lon : (fila.Longitud || 0);
+                
+                // Pausa respetando la cuota del API
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            statusDiv.innerText = "Generando nuevo archivo Excel...";
+
+            const newWorksheet = XLSX.utils.json_to_sheet(jsonRows);
+            const newWorkbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, sheetName || "Tecnicos_Base");
+            
+            XLSX.writeFile(newWorkbook, "Plantilla_Tecnicos_SmartLogistics_Coordenadas.xlsx");
+
+            statusDiv.innerText = "¡Proceso finalizado! Archivo descargado.";
+            btn.disabled = false;
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Generador de Plantilla Excel</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+    <h2>Generando archivo Excel para SmartLogistics...</h2>
+    <p>Si la descarga no inicia automáticamente, haz clic en el botón de abajo.</p>
+    <button onclick="downloadTemplate()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Descargar Plantilla Excel</button>
+
+    <script>
+        function downloadTemplate() {
+            const templateData = [
+                {
+                    ID: "T-101",
+                    Nombre: "Carlos Mendoza",
+                    Especialidad: "Mantenimiento CORT",
+                    Transporte: "Moto",
+                    Direccion_Vivienda: "Av. Insurgentes Sur 1500, CDMX",
+                    Costo_KM: 3.20,
+                    KPI: 98.5,
+                    Boletos_Activos: 0,
+                    Latitud: 19.3620,
+                    Longitud: -99.1802
+                },
+                {
+                    ID: "T-102",
+                    Nombre: "Roberto Gómez",
+                    Especialidad: "Mantenimiento CORT",
+                    Transporte: "Auto",
+                    Direccion_Vivienda: "Av. Tecnológico 100, Metepec",
+                    Costo_KM: 6.80,
+                    KPI: 94.0,
+                    Boletos_Activos: 1,
+                    Latitud: 19.2562,
+                    Longitud: -99.6048
+                },
+                {
+                    ID: "T-103",
+                    Nombre: "Ana Laura Torres",
+                    Especialidad: "Terminal Punto de Venta",
+                    Transporte: "Transporte Público",
+                    Direccion_Vivienda: "Paseo Tollocan, Toluca",
+                    Costo_KM: 1.50,
+                    KPI: 91.2,
+                    Boletos_Activos: 0,
+                    Latitud: 19.2870,
+                    Longitud: -99.6300
+                },
+                {
+                    ID: "T-104",
+                    Nombre: "Alfredo Hernández",
+                    Especialidad: "Servidores Cisco",
+                    Transporte: "Auto",
+                    Direccion_Vivienda: "Metepec Centro, EdoMex",
+                    Costo_KM: 6.80,
+                    KPI: 97.0,
+                    Boletos_Activos: 0,
+                    Latitud: 19.2500,
+                    Longitud: -99.6000
+                }
+            ];
+
+            const ws = XLSX.utils.json_to_sheet(templateData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Tecnicos_Base");
+            XLSX.writeFile(wb, "Plantilla_Tecnicos_SmartLogistics.xlsx");
+        }
+
+        // Descargar automáticamente al cargar
+        window.onload = downloadTemplate;
+    </script>
+</body>
+</html>

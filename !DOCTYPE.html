@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Lead Qualifier Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f7f6; padding: 20px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 12px; text-align: left; }
+    .badge-high { background: #e6f4ea; color: #137333; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+    .btn { background: #0066ff; color: #fff; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>1. Configura tu Oferta de Valor</h2>
+    <textarea rows="3" style="width: 100%;" placeholder="Ej: Ayudamos a empresas B2B a reducir un 30% sus costos logísticos mediante software..."></textarea>
+    <br><br>
+    <button class="btn" onclick="analizarLeads()">Analizar Prospectos con IA</button>
+  </div>
+
+  <div class="card">
+    <h2>2. Prospectos Calificados por la IA</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Empresa / Contacto</th>
+          <th>Señal Detectada</th>
+          <th>Score IA</th>
+          <th>Mensaje Generado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Logística Express</strong><br><small>Juan Pérez - Director de Ops</small></td>
+          <td>Apertura de vacante "Gerente de Cadena de Suministro"</td>
+          <td><span class="badge-high">95/100</span></td>
+          <td>"Hola Juan, vi que están ampliando el equipo de operaciones..."</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    function analizarLeads() {
+      // Aquí el código JavaScript envía los datos al servidor para llamar a la IA
+      alert("Enviando datos al agente de IA para calificación...");
+    }
+  </script>
+</body>
+</html>

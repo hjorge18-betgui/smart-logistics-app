@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "User",
+  "type": "object",
+  "properties": {
+    "userId": { "type": "string", "format": "uuid" },
+    "username": { "type": "string", "format": "email" },
+    "passwordHash": { "type": "string", "description": "Argon2id / PBKDF2 Hash" },
+    "role": { "type": "string", "enum": ["ADMIN", "FIELD_TECH"] },
+    "sessionToken": { "type": "string" },
+    "mfaEnabled": { "type": "boolean", "default": true },
+    "lastLogin": { "type": "string", "format": "date-time" }
+  },
+  "required": ["userId", "username", "passwordHash", "role"]
+}

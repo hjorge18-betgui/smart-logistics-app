@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TechnicianProfile",
+  "type": "object",
+  "properties": {
+    "technicianId": { "type": "string", "format": "uuid" },
+    "fullName": { "type": "string" },
+    "phone": { "type": "string", "pattern": "^\\+52[0-9]{10}$" },
+    "transportType": { 
+      "type": "string", 
+      "enum": ["PUBLIC_TRANSPORT", "MOTORCYCLE", "AUTOMOBILE"] 
+    },
+    "costPerKm": { "type": "number", "description": "Costo operativo en MXN/km" },
+    "skills": {
+      "type": "array",
+      "items": { "type": "string" },
+      "examples": ["Servidores Cisco", "TPV", "Cableado Estructurado"]
+    },
+    "kpiMetrics": {
+      "type": "object",
+      "properties": {
+        "onTimeArrivalRate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "firstTimeFixRate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "avgRating": { "type": "number", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "currentLocation": {
+      "type": "object",
+      "properties": {
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "postalCode": { "type": "string", "pattern": "^[0-9]{5}$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "required": ["technicianId", "fullName", "transportType", "costPerKm", "skills", "kpiMetrics"]
+}

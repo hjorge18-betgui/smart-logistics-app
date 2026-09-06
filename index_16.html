@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA DE GESTIÓN DE VIÁTICOS Y GASTOS - SMARTLOGISTICS</title>
+    
+    <!-- CDNs Necesarios -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet OpenStreetMap -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #map, #techMap { height: 260px; width: 100%; border-radius: 0.75rem; }
+    </style>
+</head>
+
+<body class="h-full bg-slate-950 text-slate-100 font-sans antialiased">
+
+    <!-- LOGIN SCREEN -->
+    <div id="loginView" class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div class="glass-panel w-full max-w-md p-8 rounded-2xl shadow-2xl relative overflow-hidden">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-blue-500/10 text-blue-500 mb-4 border border-blue-500/20">
+                    <i class="fa-solid fa-truck-fast text-3xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold tracking-tight text-white">SmartLogistics MX</h1>
+                <p class="text-xs text-slate-400 mt-1">Plataforma de Asignación e Inteligencia Operativa</p>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-5">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Usuario / ID</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-4 top-3.5 text-slate-500"></i>
+                        <input type="text" id="loginUser" required value="admin@logistics.mx" 
+                            class="w-full bg-slate-900/80 border border-slate-700 rounded-lg py-3 pl-11 pr-4 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Contraseña</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-4 top-3.5 text-slate-500"></i>
+                        <input type="password" id="loginPass" required value="password123" 
+                            class="w-full bg-slate-900/80 border border-slate-700 rounded-lg py-3 pl-11 pr-4 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Rol de Acceso</label>
+                    <select id="loginRole" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg py-3 px-4 text-sm text-white focus:outline-none focus:border-blue-500">
+                        <option value="ADMIN">Administrador de Operaciones</option>
+                        <option value="TECH">Técnico de Campo (Field Tech)</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200">
+                    Iniciar Sesión Segura
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="appContainer" class="hidden min-h-screen flex flex-col">
+        <!-- HEADER NAVBAR -->
+        <header class="glass-panel sticky top-0 z-50 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-network-wired text-blue-500 text-xl"></i>
+                <span class="font-bold text-lg tracking-wide text-white">SmartLogistics<span class="text-blue-500">.AI</span></span>
+                <span id="roleBadge" class="ml-3 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">ADMIN</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="text-right hidden sm:block">
+                    <p id="userNameDisplay" class="text-sm font-medium text-slate-200">Ing. Alfredo Hernández</p>
+                    <p id="userLocationDisplay" class="text-xs text-slate-400">CDMX / EdoMex</p>
+                </div>
+                <button onclick="handleLogout()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors" title="Cerrar Sesión">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- ADMIN DASHBOARD VIEW -->
+        <main id="adminView" class="hidden flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- EXCEL IMPORT -->
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-file-excel text-green-500"></i> Carga Masiva de Datos (.XLSX / .CSV)
+                        </h3>
+                        <div id="dropZone" onclick="document.getElementById('fileInput').click()"
+                            class="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-lg p-4 text-center cursor-pointer transition-colors bg-slate-900/40">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-500 mb-1"></i>
+                            <p class="text-xs text-slate-300 font-medium">Arrastra tu Excel estructurado o <span class="text-blue-500">haz clic</span></p>
+                            <input type="file" id="fileInput" class="hidden" accept=".xlsx, .csv" onchange="handleFileSelect(event)">
+                        </div>
+                        <div id="importStatus" class="mt-2 text-xs text-green-400 hidden flex items-center gap-1">
+                            <i class="fa-solid fa-circle-check"></i> <span id="importStatusText">Técnicos sincronizados</span>
+                        </div>
+                    </div>
+                    <button onclick="processAndCalculateExcel()" class="mt-3 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calculator"></i> Analizar Excel y Recalcular
+                    </button>
+                </div>
+
+                <!-- COST METRICS -->
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 lg:col-span-2 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                                <i class="fa-solid fa-calculator text-blue-400"></i> Módulo de Costos Financieros y Viáticos
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Sección de cálculo exacto por kilómetro según distancia real del servicio</p>
+                        </div>
+                        <button onclick="downloadExcelReport()" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-bold transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-export"></i> Bajar Reporte Excel
+                        </button>
+                    </div>
+
+                    <!-- GRID SECCIÓN COSTO POR KM Y COSTO TOTAL REAL -->
+                    <div class="grid grid-cols-3 gap-4 my-2">
+                        <!-- TRANSPORTE PÚBLICO -->
+                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                                    <span class="font-medium text-slate-200"><i class="fa-solid fa-bus text-yellow-500 mr-1"></i> Transp. Público</span>
+                                    <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-yellow-400 font-mono font-bold">$1.50/km</span>
+                                </div>
+                                <div class="flex items-baseline justify-between mt-2">
+                                    <span class="text-[10px] uppercase text-slate-400 tracking-wider">Costo Ruta:</span>
+                                    <span id="costPublicDisplay" class="text-base font-bold text-white font-mono">$0.00</span>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-500 pt-1.5 mt-1 border-t border-slate-800 flex justify-between">
+                                <span>Tarifa base: $15</span>
+                                <span id="distPublicSub">0.0 km</span>
+                            </div>
+                        </div>
+
+                        <!-- MOTOCICLETA -->
+                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                                    <span class="font-medium text-slate-200"><i class="fa-solid fa-motorcycle text-orange-400 mr-1"></i> Motocicleta</span>
+                                    <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-orange-400 font-mono font-bold">$3.20/km</span>
+                                </div>
+                                <div class="flex items-baseline justify-between mt-2">
+                                    <span class="text-[10px] uppercase text-slate-400 tracking-wider">Costo Ruta:</span>
+                                    <span id="costMotoDisplay" class="text-base font-bold text-white font-mono">$0.00</span>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-500 pt-1.5 mt-1 border-t border-slate-800 flex justify-between">
+                                <span>Ágil en ciudad</span>
+                                <span id="distMotoSub">0.0 km</span>
+                            </div>
+                        </div>
+
+                        <!-- AUTOMÓVIL -->
+                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                                    <span class="font-medium text-slate-200"><i class="fa-solid fa-car text-blue-400 mr-1"></i> Automóvil</span>
+                                    <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-blue-400 font-mono font-bold">$6.80/km</span>
+                                </div>
+                                <div class="flex items-baseline justify-between mt-2">
+                                    <span class="text-[10px] uppercase text-slate-400 tracking-wider">Costo Ruta:</span>
+                                    <span id="costAutoDisplay" class="text-base font-bold text-white font-mono">$0.00</span>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-500 pt-1.5 mt-1 border-t border-slate-800 flex justify-between">
+                                <span>Para larga distancia</span>
+                                <span id="distAutoSub">0.0 km</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-800">
+                        <span>Cálculo preciso de viáticos en tiempo real (Ruta Principal vs Alternativa por Tráfico)</span>
+                        <span class="text-blue-400 font-semibold">Motor OSRM Activo</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM & AI MATCHING -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- FORM (COLUMNA IZQUIERDA - 5 COLUMNAS) -->
+                <div class="lg:col-span-5 glass-panel p-6 rounded-xl border border-slate-800 space-y-4">
+                    <h2 class="text-base font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <i class="fa-solid fa-ticket text-blue-500"></i> Captura de Nuevo Reporte de Servicio
+                    </h2>
+                    <form id="ticketForm" onsubmit="generateAIRecommendation(event)" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Seleccionar Técnico Específico (Opcional)</label>
+                            <select id="manualTechSelect" onchange="generateAIRecommendation(null)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500">
+                                <option value="AUTO">-- Auto Asignar con Algoritmo IA --</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Cliente / Empresa</label>
+                            <input type="text" id="clientName" required value="Grupo Modelo" 
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Estado</label>
+                                <select id="stateSelect" onchange="onStateChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-blue-500">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Municipio / Capital</label>
+                                <select id="citySelect" onchange="onCityChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-blue-500">
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Lugares y Direcciones Detectadas en la Localidad</label>
+                            <select id="addressSuggestions" onchange="onSelectAddressSuggestion()" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-blue-500">
+                                <option value="">Cargando direcciones...</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Dirección Exacta del Servicio</label>
+                            <input type="text" id="clientAddress" oninput="onAddressInputChanged()" onchange="onAddressInputChanged(true)" required value="C. 2 282, Sin Nombre de Col 6, 97165 Kanasín, Yuc." 
+                                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Tipo de problema</label>
+                                <select id="issueType" onchange="generateAIRecommendation(null)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500">
+                                    <option value="Mantenimiento CORT">Mantenimiento Correctivo PC</option>
+                                    <option value="Servidores Cisco">Servidores / Network Cisco</option>
+                                    <option value="Terminal Punto de Venta">TPV / Terminal Punto Venta</option>
+                                    <option value="Cableado Estructurado">Cableado / Fibra Óptica</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Urgencia / SLA</label>
+                                <select id="urgency" onchange="generateAIRecommendation(null)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-blue-500">
+                                    <option value="Baja">Baja (Mismo día)</option>
+                                    <option value="Media">Media (&lt; 4 Horas)</option>
+                                    <option value="Alta" selected>Alta (&lt; 2 Horas)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="btnEvaluate" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-yellow-300"></i>
+                            <span id="btnEvaluateText">Evaluar con Algoritmo IA</span>
+                        </button>
+
+                        <!-- CUADRO CON EL RANKING DEL TÉCNICO EVALUADO -->
+                        <div id="techRankingCard" class="bg-slate-900/90 border border-slate-700/80 rounded-xl p-3.5 space-y-2 mt-3 shadow-inner">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-medal text-yellow-400"></i> Ranking del Técnico
+                                </span>
+                                <span id="rankingPositionBadge" class="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2 py-0.5 rounded-full">
+                                    #1 en Escalafón
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between pt-1">
+                                <div>
+                                    <p id="rankingTechName" class="text-xs font-bold text-white truncate max-w-[190px]">Cargando técnico...</p>
+                                    <p id="rankingTechSpecialty" class="text-[10px] text-slate-400">Especialidad técnica</p>
+                                </div>
+                                <div class="text-right">
+                                    <div id="rankingStars" class="text-yellow-400 text-xs flex gap-0.5 justify-end">
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 mt-0.5">Score: <span id="rankingScoreVal" class="text-white font-bold">1.0</span> / 1.0</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                                <div class="bg-slate-950/70 p-1.5 rounded border border-slate-800 text-center">
+                                    <span class="text-slate-400 text-[9px] block">EFECTIVIDAD KPI</span>
+                                    <span id="rankingKpiDisplay" class="font-bold text-blue-400 text-xs">100%</span>
+                                </div>
+                                <div class="bg-slate-950/70 p-1.5 rounded border border-slate-800 text-center">
+                                    <span class="text-slate-400 text-[9px] block">NIVEL ASIGNACIÓN</span>
+                                    <span id="rankingTierDisplay" class="font-bold text-emerald-400 text-xs">Prioridad Alta</span>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- AI RECOMMENDATION & MAP (COLUMNA DERECHA - 7 COLUMNAS) -->
+                <div class="lg:col-span-7 space-y-6">
+                    <div id="aiRecommendationCard" class="glass-panel p-6 rounded-xl border border-blue-500/40 bg-gradient-to-r from-slate-900 via-slate-900 to-blue-950/30 relative overflow-hidden">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-brain text-blue-500"></i> Recomendación Inteligente Directa
+                            </span>
+                            <span id="matchScoreBadge" class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2.5 py-1 rounded-full font-bold">
+                                --% Match Score
+                            </span>
+                        </div>
+                        <h3 id="topCandidateName" class="text-xl font-bold text-white mb-2">Evaluando candidatos...</h3>
+                        
+                        <div class="bg-slate-950/80 p-3.5 rounded-lg border border-slate-800 text-xs text-slate-300 font-mono leading-relaxed mb-4">
+                            <span class="text-blue-400 font-semibold">[Razonamiento IA]:</span> 
+                            <span id="aiReasoningText">Calculando ruta vial con OSRM y alternativas por tráfico...</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs mb-4">
+                            <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                                <span class="text-slate-400 block text-[10px]">Tiempo Estimado</span>
+                                <span id="topCandidateTime" class="font-bold text-white text-sm">-- min</span>
+                            </div>
+                            <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                                <span class="text-slate-400 block text-[10px]">Costo Estimado Ruta</span>
+                                <span id="topCandidateCost" class="font-bold text-green-400 text-sm">$-- MXN</span>
+                            </div>
+                            <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                                <span class="text-slate-400 block text-[10px]">Efectividad KPI</span>
+                                <span id="topCandidateKPI" class="font-bold text-blue-400 text-sm">--%</span>
+                            </div>
+                        </div>
+
+                        <!-- MAPA INTERACTIVO -->
+                        <div class="rounded-lg overflow-hidden border border-slate-800">
+                            <div id="map"></div>
+                        </div>
+                    </div>
+
+                    <!-- TABLA TOP CANDIDATOS -->
+                    <div class="glass-panel p-5 rounded-xl border border-slate-800">
+                        <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-list-ol"></i> Top Candidatos Evaluados
+                        </h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs text-slate-300">
+                                <thead class="text-[11px] uppercase bg-slate-900/80 text-slate-400 border-b border-slate-800">
+                                    <tr>
+                                        <th class="p-2.5">Técnico</th>
+                                        <th class="p-2.5">Especialidad</th>
+                                        <th class="p-2.5">Transporte</th>
+                                        <th class="p-2.5">Dist. / Tiempo</th>
+                                        <th class="p-2.5">Match</th>
+                                        <th class="p-2.5 text-center">Acción / Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="candidatesTableBody" class="divide-y divide-slate-800">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- FIELD TECHNICIAN MOBILE VIEW -->
+        <main id="techView" class="hidden flex-1 p-4 max-w-md w-full mx-auto space-y-4">
+            <div class="glass-panel p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-satellite-dish text-blue-500"></i> Seguimiento en Tiempo Real
+                    </p>
+                    <p id="trackingStatus" class="text-[10px] text-slate-400">GPS Desactivado</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="gpsToggle" onchange="toggleGPSTracking(this)" class="sr-only peer">
+                    <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
+            <div class="glass-panel p-3 rounded-xl border border-slate-800">
+                <div id="techMap"></div>
+            </div>
+
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">Ticket Asignado</span>
+                    <span class="text-xs text-slate-400">SLA: <strong class="text-white">2.0 hrs restantes</strong></span>
+                </div>
+
+                <div>
+                    <h2 class="text-lg font-bold text-white">Grupo Modelo</h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        <i class="fa-solid fa-location-dot text-red-400 mr-1"></i>
+                        San Francisco de Campeche, Campeche
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1 text-xs">
+                    <p class="text-slate-400">Tipo de Fallo: <span class="text-white font-medium">Mantenimiento Correctivo PC</span></p>
+                    <p class="text-slate-400">Estado: <span id="currentTicketStatus" class="text-yellow-400 font-medium">Asignado</span></p>
+                </div>
+
+                <div class="pt-2 border-t border-slate-800 space-y-2">
+                    <button onclick="updateTicketStatus('EN_RUTA')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg">
+                        <i class="fa-solid fa-person-biking mr-1 text-blue-400"></i> Registrar "En Ruta"
+                    </button>
+                    <button onclick="updateTicketStatus('FINALIZADO')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow">
+                        <i class="fa-solid fa-check-circle mr-1"></i> Concluir Servicio
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // CATÁLOGO COMPLETO DE ESTADOS Y CIUDADES DE MÉXICO
+        const mexicoData = {
+            "Aguascalientes": ["Aguascalientes", "Jesús María", "Calvillo"],
+            "Baja California": ["Mexicali", "Tijuana", "Ensenada", "Tecate", "Rosarito"],
+            "Baja California Sur": ["La Paz", "Los Cabos", "Loreto", "Comondú"],
+            "Campeche": ["San Francisco de Campeche", "Carmen", "Champotón"],
+            "Chiapas": ["Tuxtla Gutiérrez", "San Cristóbal de las Casas", "Tapachula", "Palenque"],
+            "Chihuahua": ["Chihuahua", "Juárez", "Delicias", "Parral", "Cuauhtémoc"],
+            "Coahuila": ["Saltillo", "Torreón", "Monclova", "Piedras Negras"],
+            "Colima": ["Colima", "Manzanillo", "Tecomán"],
+            "Ciudad de México": ["Álvaro Obregón", "Cuauhtémoc", "Coyoacán", "Iztapalapa", "Miguel Hidalgo", "Benito Juárez"],
+            "Durango": ["Victoria de Durango", "Gómez Palacio", "Lerdo"],
+            "Guanajuato": ["Guanajuato", "León", "Irapuato", "Celaya", "San Miguel de Allende"],
+            "Guerrero": ["Chilpancingo", "Acapulco", "Zihuatanejo", "Iguala"],
+            "Hidalgo": ["Pachuca de Soto", "Mineral de la Reforma", "Tulancingo", "Tula de Allende"],
+            "Jalisco": ["Guadalajara", "Zapopan", "Tlaquepaque", "Puerto Vallarta", "Tonalá"],
+            "Estado de México": ["Metepec", "Toluca", "Ecatepec", "Naucalpan", "Tlalnepantla", "Cuautitlán Izcalli", "Xonacatlán"],
+            "Michoacán": ["Morelia", "Uruapan", "Zamora", "Lázaro Cárdenas"],
+            "Morelos": ["Cuernavaca", "Jiutepec", "Cuautla"],
+            "Nayarit": ["Tepic", "Bahía de Banderas", "Compostela"],
+            "Nuevo León": ["Monterrey", "San Pedro Garza García", "Guadalupe", "Apodaca", "San Nicolás"],
+            "Oaxaca": ["Oaxaca de Juárez", "Puerto Escondido", "Salina Cruz", "Juchitán"],
+            "Puebla": ["Puebla de Zaragoza", "San Andrés Cholula", "Tehuacán"],
+            "Querétaro": ["Santiago de Querétaro", "San Juan del Río", "El Marqués"],
+            "Quintana Roo": ["Chetumal", "Cancún", "Playa del Carmen", "Cozumel"],
+            "San Luis Potosí": ["San Luis Potosí", "Soledad de Graciano Sánchez", "Ciudad Valles"],
+            "Sinaloa": ["Culiacán", "Mazatlán", "Los Mochis"],
+            "Sonora": ["Hermosillo", "Ciudad Obregón", "Nogales", "Guaymas"],
+            "Tabasco": ["Villahermosa", "Cárdenas", "Comalcalco"],
+            "Tamaulipas": ["Ciudad Victoria", "Reynosa", "Tampico", "Matamoros"],
+            "Tlaxcala": ["Tlaxcala", "Apizaco", "Huamantla"],
+            "Veracruz": ["Xalapa", "Veracruz", "Coatzacoalcos", "Poza Rica"],
+            "Yucatán": ["Mérida", "Kanasín", "Valladolid", "Progreso", "San Antonio Tehuitz"],
+            "Zacatecas": ["Zacatecas", "Fresnillo", "Guadalupe"]
+        };
+
+        // BASE DE DATOS DE TÉCNICOS INICIAL (Con ranking y coordenadas nacionales)
+        let databaseTechnicians = [
+            { id: "T-101", name: "ISMAEL JACOME CHAGALA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "T A BARBACHANO M 764 L 5 SACXAN Y N BRAVO LAZARO CARDENAS COL. F. CHETUMAL, Q.R", lat: 18.539505, lng: -88.271435, costPerKm: 6.8, kpiEffectiveness: 100.0, rankingRaw: 1.0, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-102", name: "CARLOS AUGUSTO PRADO ARGUELLO", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "MACARENA 13 FRACC LA GIRALDA JALAPA VERACRUZ", lat: 19.508521, lng: -96.867738, costPerKm: 6.8, kpiEffectiveness: 100.0, rankingRaw: 1.0, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-103", name: "RAMIRO RIOS VALENZUELA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "PICACHOS 332 ORIENTE PRADERAS DEL SUR. CIUDAD JUAREZ", lat: 31.548617, lng: -106.371635, costPerKm: 6.8, kpiEffectiveness: 50.0, rankingRaw: 0.5, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-104", name: "ANTONIO TORRES MARTINEZ", specialty: "MANTENIMIENTO EN COMPUTO", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "PRIV 16 DE SEPTIEMBRE SN XONACATLAN,EDO MEX", lat: 19.399192, lng: -99.528344, costPerKm: 6.8, kpiEffectiveness: 30.0, rankingRaw: 0.3, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-105", name: "FAUSTO MIGUEL LARRAÑAGA ESPARZA", specialty: "LI. SISTEMAS COMPUTACIONALES", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "SAN PEDRO , SAN BENITO. CULIACAN SINALOA", lat: 23.952825, lng: -102.548353, costPerKm: 6.8, kpiEffectiveness: 25.0, rankingRaw: 0.25, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-106", name: "LUIS CARLOS ROBLES GONZALEZ", specialty: "LIC. EN INFORMATICA", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "JOYEROS N. 778 MORELOS GRANJAS EL GALLO ENSENADA", lat: 31.864618, lng: -116.571782, costPerKm: 6.8, kpiEffectiveness: 10.0, rankingRaw: 0.1, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-107", name: "LUIS ARMANDO SALDAÑA CARILLO", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "PRIVADA 98 AVE 1 Y AVE J PUEBLO VIEJO. CABORCA SONORA", lat: 31.819762, lng: -112.837481, costPerKm: 6.8, kpiEffectiveness: 9.0, rankingRaw: 0.09, activeTickets: 0, status: "DISPONIBLE" },
+            { id: "T-108", name: "ALAN HERNANDEZ SEGURA", specialty: "TECNICO EN SISTEMAS", transport: "Auto", phone: "525585601910", email: "ahernandez@bet-gui.com.mx", address: "AV LA HACIENDA 240 SOLEDAD DE GRACIANO,SLP", lat: 22.183617, lng: -100.940690, costPerKm: 6.8, kpiEffectiveness: 1.0, rankingRaw: 0.01, activeTickets: 0, status: "DISPONIBLE" }
+        ];
+
+        let lastEvaluatedCandidates = [];
+        let map, techMap, mapGroup, watchId = null;
+        let debounceTimer = null;
+        let isInternalAddressChange = false;
+
+        function cleanString(str) {
+            return (str || '')
+                .toString()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]/g, "");
+        }
+
+        function getExcelFieldValue(row, possibleNames) {
+            const keys = Object.keys(row);
+            for (let name of possibleNames) {
+                const targetClean = cleanString(name);
+                for (let key of keys) {
+                    const keyClean = cleanString(key);
+                    if (keyClean === targetClean && row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+                        return row[key];
+                    }
+                }
+            }
+            for (let name of possibleNames) {
+                const targetClean = cleanString(name);
+                if (targetClean.length < 3) continue;
+                for (let key of keys) {
+                    const keyClean = cleanString(key);
+                    if ((keyClean.includes(targetClean) || targetClean.includes(keyClean)) && row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+                        return row[key];
+                    }
+                }
+            }
+            return null;
+        }
+
+        function formatPhoneNumber(rawPhone) {
+            if (!rawPhone) return "";
+            let digits = String(rawPhone).replace(/\D/g, '');
+            if (digits.length === 10) return "52" + digits;
+            if (digits.length === 11 && digits.startsWith("1")) return "52" + digits.substring(1);
+            return digits;
+        }
+
+        function normalizeTransport(raw) {
+            if (!raw) return "Auto";
+            const str = String(raw).toLowerCase().trim();
+            if (str.includes("pub") || str.includes("púb") || str.includes("camion") || str.includes("bus") || str.includes("combi") || str.includes("transp")) {
+                return "Transporte Público";
+            }
+            if (str.includes("moto")) return "Moto";
+            return "Auto";
+        }
+
+        function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function updateTechDropdown() {
+            const select = document.getElementById('manualTechSelect');
+            if (!select) return;
+            select.innerHTML = '<option value="AUTO">-- Auto Asignar con Algoritmo IA --</option>';
+            databaseTechnicians.forEach(t => {
+                const isAssigned = t.activeTickets > 0;
+                const isStandby = t.status === 'STANDBY';
+                
+                let stateLabel = '';
+                if (isStandby) stateLabel = ' [STANDBY / VACACIONES]';
+                else if (isAssigned) stateLabel = ` [ASIGNADO: ${t.activeTickets} ticket(s)]`;
+
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = `${t.name} [${t.id}] - ${t.specialty} (${t.transport})${stateLabel}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function populateStates() {
+            const stateSelect = document.getElementById('stateSelect');
+            if (!stateSelect) return;
+            stateSelect.innerHTML = '';
+            Object.keys(mexicoData).forEach(state => {
+                const option = document.createElement('option');
+                option.value = state;
+                option.textContent = state;
+                stateSelect.appendChild(option);
+            });
+            stateSelect.value = "Yucatán";
+            onStateChange();
+        }
+
+        function onStateChange() {
+            const state = document.getElementById('stateSelect').value;
+            const citySelect = document.getElementById('citySelect');
+            if (!citySelect) return;
+            citySelect.innerHTML = '';
+            
+            if (mexicoData[state]) {
+                mexicoData[state].forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city;
+                    option.textContent = city;
+                    citySelect.appendChild(option);
+                });
+            }
+            if (state === "Yucatán") {
+                citySelect.value = "Kanasín";
+            }
+            onCityChange();
+        }
+
+        async function onCityChange() {
+            if (isInternalAddressChange) return;
+            const state = document.getElementById('stateSelect').value;
+            const city = document.getElementById('citySelect').value;
+            const addressSelect = document.getElementById('addressSuggestions');
+            const addressInput = document.getElementById('clientAddress');
+
+            if (!addressSelect) return;
+            addressSelect.innerHTML = '<option value="">Cargando direcciones de la localidad...</option>';
+
+            try {
+                const query = `${city}, ${state}, Mexico`;
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=10`);
+                const data = await response.json();
+
+                addressSelect.innerHTML = '';
+                if (data && data.length > 0) {
+                    data.forEach((item, index) => {
+                        const opt = document.createElement('option');
+                        opt.value = item.display_name;
+                        opt.textContent = `${index + 1}. ${item.display_name.substring(0, 75)}...`;
+                        addressSelect.appendChild(opt);
+                    });
+
+                    if (addressInput && !addressInput.value.includes(city)) {
+                        addressInput.value = data[0].display_name;
+                    }
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = `${city}, ${state}, Mexico`;
+                    opt.textContent = `Centro de ${city}, ${state}`;
+                    addressSelect.appendChild(opt);
+                }
+            } catch (error) {
+                console.warn("Error cargando direcciones:", error);
+                addressSelect.innerHTML = `<option value="${city}, ${state}, Mexico">Centro de ${city}, ${state}</option>`;
+            }
+
+            generateAIRecommendation(null);
+        }
+
+        function onSelectAddressSuggestion() {
+            const addressSelect = document.getElementById('addressSuggestions');
+            const addressInput = document.getElementById('clientAddress');
+            if (addressSelect && addressInput && addressSelect.value) {
+                addressInput.value = addressSelect.value;
+                generateAIRecommendation(null);
+            }
+        }
+
+        function onAddressInputChanged(immediate = false) {
+            clearTimeout(debounceTimer);
+            if (immediate) {
+                generateAIRecommendation(null);
+            } else {
+                debounceTimer = setTimeout(() => {
+                    generateAIRecommendation(null);
+                }, 500);
+            }
+        }
+
+        async function syncStateAndCityFromAddressDetails(addressDetails) {
+            if (!addressDetails) return;
+            const stateSelect = document.getElementById('stateSelect');
+            const citySelect = document.getElementById('citySelect');
+            if (!stateSelect || !citySelect) return;
+
+            const stateName = addressDetails.state || '';
+            const cityName = addressDetails.city || addressDetails.town || addressDetails.village || addressDetails.municipality || addressDetails.county || '';
+
+            let matchedState = Object.keys(mexicoData).find(s => 
+                cleanString(s).includes(cleanString(stateName)) || cleanString(stateName).includes(cleanString(s))
+            );
+
+            if (matchedState) {
+                isInternalAddressChange = true;
+                stateSelect.value = matchedState;
+                
+                citySelect.innerHTML = '';
+                mexicoData[matchedState].forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c;
+                    option.textContent = c;
+                    citySelect.appendChild(option);
+                });
+
+                let matchedCity = mexicoData[matchedState].find(c => 
+                    cleanString(c).includes(cleanString(cityName)) || cleanString(cityName).includes(cleanString(c))
+                );
+
+                if (matchedCity) {
+                    citySelect.value = matchedCity;
+                } else if (cityName) {
+                    const option = document.createElement('option');
+                    option.value = cityName;
+                    option.textContent = cityName;
+                    citySelect.appendChild(option);
+                    citySelect.value = cityName;
+                }
+                isInternalAddressChange = false;
+            }
+        }
+
+        async function geocodeAddress(address) {
+            if (!address || address.trim() === "") {
+                return { lat: 20.9328, lng: -89.5614 };
+            }
+
+            const rawTrim = address.trim();
+
+            const coordMatch = rawTrim.match(/^([-+]?\d{1,2}\.\d+)[,\s]+([-+]?\d{1,3}\.\d+)$/);
+            if (coordMatch) {
+                return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+            }
+
+            const cpMatch = rawTrim.match(/\b\d{5}\b/);
+            const cp = cpMatch ? cpMatch[0] : null;
+
+            let queriesToTry = [];
+            let q1 = rawTrim;
+            if (!cleanString(q1).includes("mexico")) q1 += ", Mexico";
+            queriesToTry.push(q1);
+
+            const parts = rawTrim.split(',').map(p => p.trim()).filter(Boolean);
+            if (parts.length > 1) {
+                queriesToTry.push(`${parts.slice(-2).join(', ')}, Mexico`);
+            }
+
+            if (cp) {
+                queriesToTry.push(`${cp}, Mexico`);
+            }
+
+            for (let query of queriesToTry) {
+                try {
+                    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=1`);
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        if (data[0].address) {
+                            await syncStateAndCityFromAddressDetails(data[0].address);
+                        }
+                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                    }
+                } catch (err) {
+                    console.warn("Fallo de búsqueda:", query, err);
+                }
+            }
+
+            const state = document.getElementById('stateSelect')?.value || "";
+            const city = document.getElementById('citySelect')?.value || "";
+            if (city || state) {
+                try {
+                    const fallbackQuery = `${city}, ${state}, Mexico`;
+                    const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackQuery)}&limit=1`);
+                    const fallbackData = await resp.json();
+                    if (fallbackData && fallbackData.length > 0) {
+                        return { lat: parseFloat(fallbackData[0].lat), lng: parseFloat(fallbackData[0].lon) };
+                    }
+                } catch (e) {}
+            }
+
+            return { lat: 20.9328, lng: -89.5614 };
+        }
+
+        function calculateRealEstTime(distKm, rawDurationMin, transportType) {
+            let speedKmH = 22;
+            if (transportType === 'Moto') speedKmH = 30;
+            if (transportType === 'Transporte Público') speedKmH = 15;
+
+            const travelMinutes = Math.round((distKm / speedKmH) * 60) + 5;
+            return Math.max(travelMinutes, Math.round(rawDurationMin));
+        }
+
+        async function fetchOSRMRoute(originLat, originLng, destLat, destLng, transportType) {
+            const directDist = calculateHaversineDistance(originLat, originLng, destLat, destLng);
+
+            try {
+                const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson&alternatives=true`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data && data.routes && data.routes.length > 0) {
+                    const mainRoute = data.routes[0];
+                    const altRoute = data.routes[1] || mainRoute;
+
+                    const distKmMain = parseFloat((mainRoute.distance / 1000).toFixed(2));
+                    const distKmAlt = parseFloat((altRoute.distance / 1000).toFixed(2));
+
+                    return {
+                        main: {
+                            distanceKm: distKmMain.toFixed(2),
+                            durationMin: calculateRealEstTime(distKmMain, mainRoute.duration / 60, transportType),
+                            geometry: mainRoute.geometry
+                        },
+                        alternative: {
+                            distanceKm: distKmAlt.toFixed(2),
+                            durationMin: calculateRealEstTime(distKmAlt, (altRoute.duration / 60) * 1.18, transportType),
+                            geometry: altRoute.geometry
+                        },
+                        isForaneo: distKmMain > 150
+                    };
+                }
+            } catch (err) {
+                console.warn("OSRM Routing falló, aplicando respaldo Haversine", err);
+            }
+
+            const estKm = (directDist * 1.25).toFixed(2);
+            return {
+                main: { distanceKm: estKm, durationMin: Math.round((estKm / 75) * 60), geometry: null },
+                alternative: { distanceKm: (estKm * 1.15).toFixed(2), durationMin: Math.round((estKm / 65) * 60), geometry: null },
+                isForaneo: directDist > 150
+            };
+        }
+
+        function initMaps() {
+            if (!map && document.getElementById('map')) {
+                map = L.map('map').setView([20.9328, -89.5614], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                mapGroup = L.layerGroup().addTo(map);
+            }
+            if (!techMap && document.getElementById('techMap')) {
+                techMap = L.map('techMap').setView([20.9328, -89.5614], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(techMap);
+            }
+        }
+
+        function handleLogin(e) {
+            if (e) e.preventDefault();
+            const role = document.getElementById('loginRole').value;
+            document.getElementById('loginView').classList.add('hidden');
+            document.getElementById('appContainer').classList.remove('hidden');
+            document.getElementById('roleBadge').innerText = role;
+
+            if (role === 'ADMIN') {
+                document.getElementById('adminView').classList.remove('hidden');
+                document.getElementById('techView').classList.add('hidden');
+                setTimeout(() => { 
+                    initMaps(); 
+                    populateStates();
+                    updateTechDropdown();
+                }, 200);
+            } else {
+                document.getElementById('techView').classList.remove('hidden');
+                document.getElementById('adminView').classList.add('hidden');
+                setTimeout(() => { 
+                    initMaps(); 
+                    if (techMap) {
+                        techMap.invalidateSize();
+                    }
+                }, 200);
+            }
+        }
+
+        function handleLogout() {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            document.getElementById('appContainer').classList.add('hidden');
+            document.getElementById('loginView').classList.remove('hidden');
+        }
+
+        async function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(evt) {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(sheet);
+                
+                if (jsonData.length > 0) {
+                    databaseTechnicians = [];
+                    for (let idx = 0; idx < jsonData.length; idx++) {
+                        let row = jsonData[idx];
+
+                        let techName = getExcelFieldValue(row, [
+                            "NOMBRE", "Nombre Técnico", "Nombre Tecnico", "Tecnico", 
+                            "Nombre_Tecnico", "Personal", "Nombre Completo"
+                        ]) || `Técnico ${idx + 1}`;
+
+                        let addressStr = getExcelFieldValue(row, [
+                            "DIRECCION", "Dirección Vivienda", "Direccion Vivienda", "Dirección", 
+                            "Ubicación", "Domicilio", "Ciudad", "Estado"
+                        ]) || "Mérida, Yucatán";
+
+                        let latVal = getExcelFieldValue(row, ["Latitud", "Lat", "CoordY"]);
+                        let lngVal = getExcelFieldValue(row, ["Longitud", "Lng", "Lon", "CoordX"]);
+                        let lat = parseFloat(latVal);
+                        let lng = parseFloat(lngVal);
+
+                        if (isNaN(lat) || isNaN(lng)) {
+                            const coords = await geocodeAddress(addressStr);
+                            lat = coords.lat;
+                            lng = coords.lng;
+                        }
+
+                        let rawTransport = getExcelFieldValue(row, ["Transporte", "Medio Transporte", "Vehiculo"]) || "Auto";
+                        let transport = normalizeTransport(rawTransport);
+
+                        let rawCostKm = getExcelFieldValue(row, ["Costo KM", "Tarifa KM", "CostoKM"]);
+                        let costKm = parseFloat(rawCostKm) || (transport === 'Moto' ? 3.2 : (transport === 'Transporte Público' ? 1.5 : 6.8));
+
+                        let specialty = getExcelFieldValue(row, ["ESPECIALIDAD", "Especialidad", "Área", "Puesto", "Area"]) || "TECNICO EN SISTEMAS";
+                        let idVal = getExcelFieldValue(row, ["ID", "Id", "Clave", "Codigo"]) || ("T-" + (101 + idx));
+
+                        let rawPhone = getExcelFieldValue(row, [
+                            "Telefono CelTeléfono Celular", "Teléfono Celular", "Telefono Celular", 
+                            "Teléfono", "Telefono", "Celular", "Móvil", "WhatsApp"
+                        ]);
+
+                        let rawEmail = getExcelFieldValue(row, [
+                            "Correo Electrónico", "Correo Electronico", "Correo", "Email", "Mail"
+                        ]);
+
+                        let rawRanking = getExcelFieldValue(row, ["Ranking", "KPI", "Efectividad", "Score", "Calificacion"]);
+                        let rankingNum = 1.0;
+                        let kpiVal = 100.0;
+                        if (rawRanking !== null && rawRanking !== undefined) {
+                            let parsed = parseFloat(rawRanking);
+                            if (!isNaN(parsed)) {
+                                rankingNum = parsed;
+                                kpiVal = parsed <= 1.0 ? parsed * 100 : parsed;
+                            }
+                        }
+
+                        databaseTechnicians.push({
+                            id: String(idVal),
+                            name: String(techName).trim(),
+                            specialty: String(specialty).trim(),
+                            transport: transport,
+                            phone: formatPhoneNumber(rawPhone),
+                            email: rawEmail ? String(rawEmail).trim() : "soporte@smartlogistics.mx",
+                            address: addressStr,
+                            lat: lat,
+                            lng: lng,
+                            costPerKm: costKm,
+                            rankingRaw: rankingNum,
+                            kpiEffectiveness: parseFloat(kpiVal.toFixed(1)),
+                            activeTickets: parseInt(getExcelFieldValue(row, ["Boletos Activos", "Tickets Activos"])) || 0,
+                            status: String(getExcelFieldValue(row, ["Estatus", "Estado"]) || "DISPONIBLE").toUpperCase()
+                        });
+                    }
+                    updateTechDropdown();
+                }
+                document.getElementById('importStatus').classList.remove('hidden');
+                document.getElementById('importStatusText').innerText = `${databaseTechnicians.length} técnicos sincronizados.`;
+                generateAIRecommendation(null);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processAndCalculateExcel() {
+            if (!databaseTechnicians.length) {
+                alert("Primero carga un archivo Excel estructurado.");
+                return;
+            }
+            generateAIRecommendation(null);
+            alert(`Cálculos actualizados correctamente para ${databaseTechnicians.length} técnicos.`);
+        }
+
+        function toggleTechStandby(techId) {
+            const tech = databaseTechnicians.find(t => t.id === techId);
+            if (!tech) return;
+
+            if (tech.status === 'STANDBY') {
+                tech.status = 'DISPONIBLE';
+                alert(`${tech.name} ahora está DISPONIBLE en línea.`);
+            } else {
+                tech.status = 'STANDBY';
+                alert(`${tech.name} ha sido puesto EN STANDBY.`);
+            }
+
+            updateTechDropdown();
+            generateAIRecommendation(null);
+        }
+
+        async function evaluateTechnicians(issue, urgency, clientCoords, manualTechId) {
+            let candidateList = databaseTechnicians.filter(t => t.status !== 'STANDBY');
+
+            if (candidateList.length === 0) {
+                candidateList = databaseTechnicians;
+            }
+
+            if (manualTechId && manualTechId !== 'AUTO') {
+                const manualTech = databaseTechnicians.find(t => t.id === manualTechId);
+                if (manualTech) {
+                    candidateList = [manualTech];
+                }
+            }
+
+            let urgencyCostMultiplier = urgency === 'Alta' ? 1.30 : (urgency === 'Media' ? 1.10 : 1.0);
+
+            const promises = candidateList.map(async (tech) => {
+                const routeData = await fetchOSRMRoute(tech.lat, tech.lng, clientCoords.lat, clientCoords.lng, tech.transport);
+                
+                const mainDist = parseFloat(routeData.main.distanceKm);
+                const altDist = parseFloat(routeData.alternative.distanceKm);
+
+                const baseFare = tech.transport === 'Transporte Público' ? 15.0 : 0.0;
+                let mainCost = (mainDist * tech.costPerKm * urgencyCostMultiplier) + baseFare;
+                let altCost = (altDist * tech.costPerKm * urgencyCostMultiplier) + baseFare;
+
+                const tSpec = cleanString(tech.specialty);
+                const iSpec = cleanString(issue);
+                const matchSpecialty = tSpec.includes(iSpec) || iSpec.includes(tSpec) || tSpec.includes("sistemas");
+                const specialtyScore = matchSpecialty ? 100 : 50;
+                
+                const distancePenalty = mainDist / 15.0;
+                const availabilityPenalty = tech.activeTickets > 0 ? 1000 : 0;
+                const timeScore = Math.max(0, 100 - (routeData.main.durationMin / 10));
+
+                let rawMatchScore = (specialtyScore * 0.35) 
+                                  + (tech.kpiEffectiveness * 0.30) 
+                                  + (timeScore * 0.15) 
+                                  - distancePenalty 
+                                  - availabilityPenalty;
+
+                return {
+                    ...tech,
+                    distanceKm: mainDist.toFixed(2),
+                    estimatedTimeMin: routeData.main.durationMin,
+                    estimatedCost: mainCost.toFixed(2),
+                    routeGeometryMain: routeData.main.geometry,
+                    
+                    altDistanceKm: altDist.toFixed(2),
+                    altEstimatedTimeMin: routeData.alternative.durationMin,
+                    altEstimatedCost: altCost.toFixed(2),
+                    routeGeometryAlt: routeData.alternative.geometry,
+                    isForaneo: routeData.isForaneo,
+
+                    matchScoreRaw: rawMatchScore,
+                    matchScore: Math.max(0, Math.min(99.9, rawMatchScore)).toFixed(1)
+                };
+            });
+
+            const results = await Promise.all(promises);
+            return results.sort((a, b) => b.matchScoreRaw - a.matchScoreRaw);
+        }
+
+        // MÓDULO DE COSTOS EXACTOS POR KM SEGÚN RUTA REAL DEL SERVICIO EVALUADO
+        function updateCostMetricsModule(topCandidate, urgency) {
+            let urgencyCostMultiplier = urgency === 'Alta' ? 1.30 : (urgency === 'Media' ? 1.10 : 1.0);
+            let routeDist = topCandidate ? parseFloat(topCandidate.distanceKm) : 0;
+
+            // Tarifas fijas por KM
+            const ratePublic = 1.50;
+            const rateMoto = 3.20;
+            const rateAuto = 6.80;
+
+            // Costos exactos para la ruta analizada
+            let totalPublic = routeDist > 0 ? ((routeDist * ratePublic * urgencyCostMultiplier) + 15.0).toFixed(2) : "0.00";
+            let totalMoto = routeDist > 0 ? (routeDist * rateMoto * urgencyCostMultiplier).toFixed(2) : "0.00";
+            let totalAuto = routeDist > 0 ? (routeDist * rateAuto * urgencyCostMultiplier).toFixed(2) : "0.00";
+
+            document.getElementById('costPublicDisplay').innerText = `$${totalPublic}`;
+            document.getElementById('costMotoDisplay').innerText = `$${totalMoto}`;
+            document.getElementById('costAutoDisplay').innerText = `$${totalAuto}`;
+
+            document.getElementById('distPublicSub').innerText = `${routeDist} km`;
+            document.getElementById('distMotoSub').innerText = `${routeDist} km`;
+            document.getElementById('distAutoSub').innerText = `${routeDist} km`;
+        }
+
+        // ACTUALIZA EL CUADRO DE RANKING DEL TÉCNICO
+        function updateTechRankingCard(topTech, positionIndex = 1) {
+            if (!topTech) return;
+
+            document.getElementById('rankingTechName').innerText = topTech.name;
+            document.getElementById('rankingTechSpecialty').innerText = `${topTech.specialty} (${topTech.transport})`;
+            document.getElementById('rankingPositionBadge').innerText = `#${positionIndex} en Escalafón`;
+
+            let score = topTech.rankingRaw !== undefined ? parseFloat(topTech.rankingRaw) : (topTech.kpiEffectiveness / 100);
+            document.getElementById('rankingScoreVal').innerText = score.toFixed(2);
+            document.getElementById('rankingKpiDisplay').innerText = `${topTech.kpiEffectiveness}%`;
+
+            // Calificación de estrellas según score
+            let starsContainer = document.getElementById('rankingStars');
+            let filledStars = Math.min(5, Math.max(1, Math.round(score * 5)));
+            let starHtml = '';
+            for (let i = 0; i < 5; i++) {
+                if (i < filledStars) {
+                    starHtml += '<i class="fa-solid fa-star text-yellow-400"></i>';
+                } else {
+                    starHtml += '<i class="fa-regular fa-star text-slate-600"></i>';
+                }
+            }
+            starsContainer.innerHTML = starHtml;
+
+            // Nivel de asignación según ranking
+            let tierEl = document.getElementById('rankingTierDisplay');
+            if (score >= 0.8) {
+                tierEl.innerText = "Prioridad Alta (Tier 1)";
+                tierEl.className = "font-bold text-emerald-400 text-xs";
+            } else if (score >= 0.4) {
+                tierEl.innerText = "Prioridad Media (Tier 2)";
+                tierEl.className = "font-bold text-amber-400 text-xs";
+            } else {
+                tierEl.innerText = "Prioridad Estándar (Tier 3)";
+                tierEl.className = "font-bold text-blue-400 text-xs";
+            }
+        }
+
+        async function generateAIRecommendation(e) {
+            if (e) e.preventDefault();
+            
+            const btnText = document.getElementById('btnEvaluateText');
+            if (btnText) btnText.innerText = "Procesando OSRM y Tráfico...";
+
+            const issue = document.getElementById('issueType').value;
+            const urgency = document.getElementById('urgency').value;
+            const address = document.getElementById('clientAddress').value;
+            const manualTechId = document.getElementById('manualTechSelect').value;
+
+            const clientCoords = await geocodeAddress(address);
+            const rankedTechs = await evaluateTechnicians(issue, urgency, clientCoords, manualTechId);
+            lastEvaluatedCandidates = rankedTechs;
+            
+            const top = rankedTechs[0];
+
+            // Actualizar costos precisos y cuadro de ranking
+            updateCostMetricsModule(top, urgency);
+            updateTechRankingCard(top, 1);
+
+            if (top) {
+                document.getElementById('topCandidateName').innerText = `${top.name} (${top.transport})`;
+                document.getElementById('matchScoreBadge').innerText = `${top.matchScore}% Match Score`;
+                document.getElementById('topCandidateTime').innerText = top.isForaneo ? `${Math.round(top.estimatedTimeMin / 60)} hrs` : `${top.estimatedTimeMin} min`;
+                document.getElementById('topCandidateCost').innerText = `$${top.estimatedCost} MXN`;
+                document.getElementById('topCandidateKPI').innerText = `${top.kpiEffectiveness}%`;
+
+                let infoExtra = top.isForaneo ? `<br><span class="text-red-400 font-semibold">⚠️ Advertencia: Ubicación foránea/interestatal detectada (${top.distanceKm} km). Se incluyen viáticos de traslado aéreo/foráneo.</span>` : (top.activeTickets > 0 ? `<br><span class="text-amber-400 font-semibold">⚠️ Nota: Selección realizada considerando técnicos con carga de trabajo activa.</span>` : ``);
+
+                document.getElementById('aiReasoningText').innerHTML = 
+                    `Sugerido: <b>${top.name}</b>. Ruta A (Corta): <b>${top.distanceKm} km</b> (~${top.estimatedTimeMin} min, $${top.estimatedCost} MXN). ` +
+                    `<br>Ruta B (Alternativa Tráfico): <b>${top.altDistanceKm} km</b> (~${top.altEstimatedTimeMin} min, $${top.altEstimatedCost} MXN).${infoExtra}`;
+
+                if (map && mapGroup) {
+                    mapGroup.clearLayers();
+
+                    const techMarker = L.marker([top.lat, top.lng]).addTo(mapGroup)
+                        .bindPopup(`<b>Origen Técnico:</b> ${top.name}<br>${top.address}`);
+
+                    const clientMarker = L.marker([clientCoords.lat, clientCoords.lng]).addTo(mapGroup)
+                        .bindPopup(`<b>Destino Cliente:</b><br>${address}`);
+
+                    let boundsGroup = L.featureGroup([techMarker, clientMarker]);
+
+                    if (top.routeGeometryMain && top.routeGeometryMain.coordinates) {
+                        const routeCoordsMain = top.routeGeometryMain.coordinates.map(c => [c[1], c[0]]);
+                        const polyMain = L.polyline(routeCoordsMain, { color: '#3b82f6', weight: 5, opacity: 0.9 })
+                            .addTo(mapGroup)
+                            .bindPopup(`Ruta A (Más Corta): ${top.distanceKm} km | $${top.estimatedCost} MXN`);
+                        boundsGroup.addLayer(polyMain);
+                    } else {
+                        const fallbackPoly = L.polyline([[top.lat, top.lng], [clientCoords.lat, clientCoords.lng]], { color: top.isForaneo ? '#ef4444' : '#3b82f6', weight: 4, dashArray: '5, 5' }).addTo(mapGroup);
+                        boundsGroup.addLayer(fallbackPoly);
+                    }
+
+                    if (top.routeGeometryAlt && top.routeGeometryAlt.coordinates && JSON.stringify(top.routeGeometryAlt) !== JSON.stringify(top.routeGeometryMain)) {
+                        const routeCoordsAlt = top.routeGeometryAlt.coordinates.map(c => [c[1], c[0]]);
+                        const polyAlt = L.polyline(routeCoordsAlt, { color: '#f59e0b', weight: 4, opacity: 0.75, dashArray: '6, 8' })
+                            .addTo(mapGroup)
+                            .bindPopup(`Ruta B (Alternativa Tráfico): ${top.altDistanceKm} km | $${top.altEstimatedCost} MXN`);
+                        boundsGroup.addLayer(polyAlt);
+                    }
+
+                    map.invalidateSize();
+                    map.fitBounds(boundsGroup.getBounds(), { padding: [30, 30] });
+                }
+
+                const tbody = document.getElementById('candidatesTableBody');
+                tbody.innerHTML = '';
+                
+                rankedTechs.forEach((evalData, index) => {
+                    const tech = databaseTechnicians.find(t => t.id === evalData.id) || evalData;
+                    const isAssigned = tech.activeTickets > 0;
+                    const isStandby = tech.status === 'STANDBY';
+
+                    const tr = document.createElement('tr');
+                    tr.className = `hover:bg-slate-800/50 transition-colors ${isStandby ? 'opacity-40 bg-slate-900/60' : (isAssigned ? 'bg-amber-950/10' : '')}`;
+                    
+                    let badgeHtml = '';
+                    if (isStandby) {
+                        badgeHtml = '<span class="ml-2 px-1.5 py-0.5 text-[9px] bg-slate-700 text-slate-300 border border-slate-600 rounded font-bold">STANDBY</span>';
+                    } else if (isAssigned) {
+                        badgeHtml = `<span class="ml-2 px-1.5 py-0.5 text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 rounded font-bold">ASIGNADO (${tech.activeTickets})</span>`;
+                    } else if (evalData.isForaneo) {
+                        badgeHtml = '<span class="ml-2 px-1.5 py-0.5 text-[9px] bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded font-bold">FORÁNEO</span>';
+                    }
+
+                    tr.innerHTML = `
+                        <td class="p-2.5 font-semibold text-white flex items-center gap-1">
+                            <span>${tech.name}</span>
+                            ${badgeHtml}
+                        </td>
+                        <td class="p-2.5 text-slate-400">${tech.specialty}</td>
+                        <td class="p-2.5"><span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${tech.transport}</span></td>
+                        <td class="p-2.5">${evalData.distanceKm ? evalData.distanceKm + ' km / ' + evalData.estimatedTimeMin + ' min' : '--'}</td>
+                        <td class="p-2.5 text-blue-400 font-bold">${evalData.matchScore ? evalData.matchScore + '%' : '--'}</td>
+                        <td class="p-2.5 text-center flex items-center justify-center gap-1.5">
+                            <button onclick="assignTicket('${tech.id}')" ${isStandby ? 'disabled' : ''} class="px-2.5 py-1 ${isAssigned ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} text-white rounded font-bold text-[10px] flex items-center gap-1">
+                                <i class="fa-brands fa-whatsapp text-green-300"></i> ${isAssigned ? 'Reasignar' : 'Asignar'}
+                            </button>
+                            <button onclick="toggleTechStandby('${tech.id}')" title="Cambiar a Standby / En línea" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-[10px]">
+                                <i class="fa-solid ${isStandby ? 'fa-user-check text-green-400' : 'fa-user-slash text-yellow-400'}"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            if (btnText) btnText.innerText = "Evaluar con Algoritmo IA";
+        }
+
+        function assignTicket(techId) {
+            const tech = databaseTechnicians.find(t => t.id === techId);
+            if (!tech) return;
+
+            tech.activeTickets += 1;
+            updateTechDropdown();
+
+            const clientName = document.getElementById('clientName').value;
+            const address = document.getElementById('clientAddress').value;
+            const issue = document.getElementById('issueType').value;
+            const urgency = document.getElementById('urgency').value;
+
+            const evaluated = lastEvaluatedCandidates.find(c => c.id === techId) || tech;
+            const phoneTarget = formatPhoneNumber(tech.phone);
+
+            const message = `*NUEVA ASIGNACIÓN DE SERVICIO - SMARTLOGISTICS*%0A%0A` +
+                `*Hola ${tech.name},* se te ha asignado un nuevo ticket:%0A` +
+                `• *Cliente:* ${clientName}%0A` +
+                `• *Fallo:* ${issue}%0A` +
+                `• *Urgencia:* ${urgency}%0A` +
+                `• *Dirección:* ${address}%0A` +
+                `• *Distancia:* ${evaluated.distanceKm || '--'} km (%7E${evaluated.estimatedTimeMin || '--'} min)%0A` +
+                `• *Correo Registrado:* ${tech.email || 'N/A'}%0A` +
+                `• *Transporte Registrado:* ${tech.transport}%0A%0A` +
+                `Por favor confirma recepción e inicia traslado en la app.`;
+
+            const waUrl = phoneTarget 
+                ? `https://api.whatsapp.com/send/?phone=${phoneTarget}&text=${message}`
+                : `https://api.whatsapp.com/send/?text=${message}`;
+
+            window.open(waUrl, '_blank');
+
+            alert(`Servicio asignado a ${tech.name}.\nTeléfono: ${tech.phone || 'No especificado'}\nEmail: ${tech.email}`);
+            
+            document.getElementById('manualTechSelect').value = 'AUTO';
+            generateAIRecommendation(null);
+        }
+
+        function downloadExcelReport() {
+            if (!lastEvaluatedCandidates.length) {
+                alert("Realiza una evaluación primero.");
+                return;
+            }
+
+            const exportData = databaseTechnicians.map(c => {
+                const evalInfo = lastEvaluatedCandidates.find(r => r.id === c.id) || {};
+                return {
+                    "ID Técnico": c.id,
+                    "Nombre Técnico": c.name,
+                    "Teléfono Celular": c.phone,
+                    "Correo Electrónico": c.email,
+                    "Especialidad": c.specialty,
+                    "Medio Transporte": c.transport,
+                    "Estado / Estatus": c.status === 'STANDBY' ? 'STANDBY' : (c.activeTickets > 0 ? 'ASIGNADO' : 'DISPONIBLE'),
+                    "Ranking Base": c.rankingRaw !== undefined ? c.rankingRaw : 1.0,
+                    "Dirección Vivienda": c.address,
+                    "Ruta Principal - Distancia (KM)": evalInfo.distanceKm || "--",
+                    "Ruta Principal - Tiempo (Min)": evalInfo.estimatedTimeMin || "--",
+                    "Ruta Principal - Viático (MXN)": evalInfo.estimatedCost || "--",
+                    "Efectividad KPI (%)": c.kpiEffectiveness,
+                    "Puntaje Match IA": evalInfo.matchScore || "--"
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Reporte_Viaticos_Rutas");
+            XLSX.writeFile(wb, `Reporte_Logistica_Viaticos_Rutas_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function toggleGPSTracking(checkbox) {
+            const statusText = document.getElementById('trackingStatus');
+            if (checkbox.checked) {
+                if ("geolocation" in navigator) {
+                    statusText.innerText = "Transmitiendo Coordenadas GPS...";
+                    statusText.className = "text-[10px] text-green-400 font-semibold";
+                    watchId = navigator.geolocation.watchPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            if (techMap) {
+                                techMap.setView([latitude, longitude], 15);
+                                L.marker([latitude, longitude]).addTo(techMap)
+                                    .bindPopup("Tu Ubicación Actual").openPopup();
+                            }
+                        },
+                        (error) => alert("Error al acceder al GPS: " + error.message),
+                        { enableHighAccuracy: true }
+                    );
+                } else {
+                    alert("Tu navegador no soporta geolocalización.");
+                    checkbox.checked = false;
+                }
+            } else {
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+                statusText.innerText = "GPS Desactivado";
+                statusText.className = "text-[10px] text-slate-400";
+            }
+        }
+
+        function updateTicketStatus(status) {
+            document.getElementById('currentTicketStatus').innerText = status;
+            alert(`Estado actualizado a: ${status}`);
+        }
+    </script>
+</body>
+</html>
